@@ -12,21 +12,23 @@ Branch strategy: `dev` → staging, `main` → production.
 
 ## Commands
 
+Package manager: **pnpm**. Do not use `npm install` — use `pnpm install`. `package-lock.json` is gitignored.
+
 ```bash
 # Install
-npm install
+pnpm install
 
 # Dev (watch mode)
-npm run start:dev
+pnpm run start:dev
 
 # Build (also copies email templates to dist/)
-npm run build
+pnpm run build
 
 # Lint (auto-fix)
-npm run lint
+pnpm run lint
 
 # All unit tests
-npm test
+pnpm test
 
 # Single test file
 ./node_modules/.bin/jest path/to/file.spec.ts --no-coverage --forceExit
@@ -41,7 +43,7 @@ npm test
 DIRECT_URL="postgresql://localhost:5432/vote" ./node_modules/.bin/prisma validate
 
 # Push schema to dev DB
-npm run db:push:dev
+pnpm run db:push:dev
 
 # Generate migration
 ./node_modules/.bin/prisma migrate dev --name <name>
@@ -50,6 +52,8 @@ npm run db:push:dev
 **Environment files:**
 - `prisma/.env` — database URLs and all secrets (gitignored; never commit)
 - `.env` — app-level env vars
+
+**Deployment:** Coolify (`dev` branch → staging, `main` → production).
 
 ---
 
@@ -79,8 +83,7 @@ src/modules/
                        notification-queue.service (BullMQ), admin-notifications.service,
                        deadline-reminders.service
   caches/            — Redis wrapper (CacheService)
-  file-upload/       — Cloudinary (candidate photos)
-  supabase/          — Supabase Storage (additional file storage)
+  file-upload/       — Cloudinary (candidate photos, nomination documents)
   common/            — Shared: enums, guards, decorators, validators, utils
 
 db/                  — PrismaService (DbModule)

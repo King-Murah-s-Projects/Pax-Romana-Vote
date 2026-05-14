@@ -2,7 +2,7 @@ import {CallHandler, ExecutionContext, Injectable, NestInterceptor} from "@nestj
 import {CacheService} from "../cache.service";
 import {Reflector} from "@nestjs/core";
 import {Observable, of, tap} from "rxjs";
-import {CACHE_KEY_METADATA, CACHE_TTL_METADATA} from "@nestjs/common/cache";
+import {CACHE_KEY_METADATA, CACHE_TTL_METADATA} from "@nestjs/cache-manager";
 
 @Injectable()
 export class CacheInterceptor implements NestInterceptor {

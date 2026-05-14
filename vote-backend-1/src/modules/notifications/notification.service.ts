@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MnotifySmsService } from "./service/mnotify-sms.service";
-import { EmailService } from "./service/email.service";
-import { NotificationQueueService } from "./service/notification-queue.service";
-import { AdminNotificationsService } from "./service/admin-notifications.service";
-import { PrismaService } from "../../../db";
+import { MnotifySmsService } from './service/mnotify-sms.service';
+import { EmailService } from './service/email.service';
+import { AdminNotificationsService } from './service/admin-notifications.service';
+import { PrismaService } from '../../../db';
 import { AdminActions } from "../common/enums/nomination-status.enum";
 import {UserRole, NominatorVerification, Candidate_Position} from "@prisma/client/index";
 
@@ -15,7 +14,6 @@ export class NotificationService {
         private notifySmsService: MnotifySmsService,
         private emailService: EmailService,
         private prisma: PrismaService,
-        private notificationQueueService: NotificationQueueService,
         private adminNotificationsService: AdminNotificationsService,
     ) {}
 

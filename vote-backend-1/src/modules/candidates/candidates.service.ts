@@ -7,14 +7,14 @@ import { CandidateCache } from "../caches/types/cache.types";
 import { Candidate_Position } from "@prisma/client/index";
 import { UpdateCandidateDto } from "./dto/update-candidate.dto";
 import { BallotCandidateDto } from "./dto/ballot-candidate.dto";
-import { SupabaseService } from "../supabase";
+import { CloudinaryService } from '../file-upload/services/cloudinary.service';
 
 @Injectable()
 export class CandidatesService {
     constructor(
         private prisma: PrismaService,
         private cacheService: CacheService,
-        private supabaseService: SupabaseService,
+        private cloudinaryService: CloudinaryService,
     ) {}
 
     //============= CRUD OPERATIONS =============
@@ -205,8 +205,7 @@ export class CandidatesService {
         });
 
         if (candidate?.photoPublicId) {
-            //@ts-ignore
-            await this.supabaseService.deleteFile(candidate.photoPublicId);
+            await this.cloudinaryService.deleteFile(candidate.photoPublicId);
         }
 
         await this.prisma.candidate.delete({
@@ -274,31 +273,25 @@ export class CandidatesService {
 
         // Delete an old photo if exists
         if (candidate.photoPublicId) {
-            await this.supabaseService.deleteFile(String(candidate.photoPublicId));
+            await this.cloudinaryService.deleteFile(String(candidate.photoPublicId));
         }
 
         // Upload a new photo
-        const fileName = `candidate-${candidateId}-${Date.now()}`;
-        const { publicUrl } = await this.supabaseService.uploadFile(
-            //@ts-ignore
-            file.buffer,
-            fileName,
-            'candidate-photos' // Your Supabase bucket name
-        );
+        const result = await this.cloudinaryService.uploadCandidatePhoto(file, candidateId);
 
         // Update candidate record
         await this.prisma.candidate.update({
             where: { id: candidateId },
             data: {
-                photoUrl: publicUrl,
-                photoPublicId: fileName,
+                photoUrl: result.secure_url,
+                photoPublicId: result.public_id,
             }
         });
 
         // Clear cache
         await this.clearCandidatesCache();
 
-        return publicUrl;
+        return result.secure_url;
     }
 
     //============= HELPER METHODS =============

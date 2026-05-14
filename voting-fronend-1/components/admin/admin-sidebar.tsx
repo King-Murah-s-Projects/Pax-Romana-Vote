@@ -1,167 +1,198 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 import {
     BarChart3,
     Users,
-    FileText,
-    Eye,
-    Settings,
-    HelpCircle,
-    Search,
-    Plus,
     Vote,
-    UserPlus,
-    Activity,
+    UserCheck,
+    Settings,
     LogOut,
-    User,
+    Menu,
+    X,
+    Shield,
+    FileText,
+    Bell,
+    Home,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
 
-interface AdminSidebarProps {
+interface SidebarProps {
     activeTab: string
-    setActiveTab: (tab: string) => void
-    isSuperAdmin: boolean
-    user: any
-    onLogout: () => void
+    onTabChange: (tab: string) => void
 }
 
-export function AdminSidebar({ activeTab, setActiveTab, isSuperAdmin, user, onLogout }: AdminSidebarProps) {
-    const navigationItems = [
-        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "monitoring", label: "Live Monitoring", icon: Activity },
-        { id: "results", label: "Results", icon: Vote },
-        ...(isSuperAdmin
-            ? [
-                { id: "candidates", label: "Candidates", icon: UserPlus },
-                { id: "nominations", label: "Nominations", icon: FileText },
-                { id: "users", label: "User Management", icon: Users },
-            ]
-            : []),
+export function AdminSidebar({ activeTab, onTabChange }: SidebarProps) {
+    const { user, logout } = useAuth()
+    const router = useRouter()
+    const pathname = usePathname()
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+    const handleLogout = () => {
+        logout()
+        router.push("/admin/login")
+    }
+
+    const getRoleDisplayName = (role: string) => {
+        switch (role) {
+            case "super_admin":
+                return "EC Chairperson"
+            case "ec_member":
+                return "EC Member"
+            default:
+                return role
+        }
+    }
+
+    const getRoleBadgeColor = (role: string) => {
+        switch (role) {
+            case "super_admin":
+                return "bg-red-100 text-red-800 border-red-200"
+            case "ec_member":
+                return "bg-blue-100 text-blue-800 border-blue-200"
+            default:
+                return "bg-gray-100 text-gray-800 border-gray-200"
+        }
+    }
+
+    const menuItems = [
+        { id: "overview", label: "Dashboard", icon: BarChart3, description: "Election overview and statistics" },
+        { id: "candidates", label: "Candidates", icon: UserCheck, description: "Manage candidate nominations" },
+        { id: "voting", label: "Voting Monitor", icon: Vote, description: "Real-time voting monitoring" },
+        { id: "results", label: "Results", icon: FileText, description: "Election results and reports" },
+        { id: "users", label: "User Management", icon: Users, description: "Manage EC members and permissions" },
+        { id: "notifications", label: "Notifications", icon: Bell, description: "System alerts and messages" },
+        { id: "settings", label: "Settings", icon: Settings, description: "System configuration" },
     ]
 
-    const documentItems = [
-        { id: "reports", label: "Election Reports", icon: FileText },
-        { id: "analytics", label: "Analytics", icon: BarChart3 },
-        { id: "audit", label: "Audit Logs", icon: Eye },
-    ]
+    const filteredMenuItems =
+        user?.role === "SUPER_ADMIN" ? menuItems : menuItems.filter((item) => !["users", "settings"].includes(item.id))
 
-    return (
-        <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+    const SidebarContent = () => (
+        <div className="flex flex-col h-full bg-white border-r border-gray-200">
             {/* Header */}
-            <div className="p-4 border-b border-gray-700">
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">V</span>
-                    </div>
-                    <span className="font-semibold text-white">VoteWise Admin</span>
+            <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center space-x-3 mb-4">
+                    <Image
+                        src="/images/imcs-pax-romana.png"
+                        alt="IMCS-Pax Romana"
+                        width={40}
+                        height={40}
+                        className="rounded-full"
+                    />
+                    <Image src="/images/Knust_seal.jpg" alt="KNUST" width={40} height={40} className="rounded-full" />
                 </div>
+                <h2 className="text-lg font-semibold text-gray-900">IMCS-Pax Romana</h2>
+                <p className="text-sm text-blue-600 font-medium">Election Commission</p>
+                <p className="text-xs text-gray-500 mt-1">Liberation for Peace</p>
+            </div>
 
-                {/* Quick Create */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input placeholder="Quick Create" className="bg-gray-700 border-gray-600 text-white pl-10 text-sm" />
-                    <Plus className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            {/* User Info */}
+            <div className="p-4 border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                        <Shield className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    </div>
+                </div>
+                <div className="mt-2">
+                    <Badge className={`text-xs ${getRoleBadgeColor(user?.role || "")}`}>
+                        {getRoleDisplayName(user?.role || "")}
+                    </Badge>
                 </div>
             </div>
 
             {/* Navigation */}
-            <div className="flex-1 overflow-auto p-4">
-                <nav className="space-y-2">
-                    {navigationItems.map((item) => (
-                        <Button
-                            key={item.id}
-                            variant={activeTab === item.id ? "secondary" : "ghost"}
-                            className={`w-full justify-start text-left ${
-                                activeTab === item.id ? "bg-gray-700 text-white" : "text-gray-300 hover:text-white hover:bg-gray-700"
-                            }`}
-                            onClick={() => setActiveTab(item.id)}
-                        >
-                            <item.icon className="mr-3 h-4 w-4" />
-                            {item.label}
-                        </Button>
-                    ))}
-                </nav>
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                <Button
+                    variant="ghost"
+                    className="w-full justify-start text-left h-auto p-3 hover:bg-blue-50"
+                    onClick={() => router.push("/")}
+                >
+                    <Home className="h-4 w-4 mr-3 text-gray-500" />
+                    <div>
+                        <div className="text-sm font-medium text-gray-900">Back to Voting</div>
+                        <div className="text-xs text-gray-500">Return to main site</div>
+                    </div>
+                </Button>
 
-                {/* Documents Section */}
-                <div className="mt-8">
-                    <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Documents</h3>
-                    <nav className="space-y-2">
-                        {documentItems.map((item) => (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                    {filteredMenuItems.map((item) => {
+                        const Icon = item.icon
+                        const isActive = activeTab === item.id
+
+                        return (
                             <Button
                                 key={item.id}
-                                variant="ghost"
-                                className="w-full justify-start text-left text-gray-300 hover:text-white hover:bg-gray-700"
-                                onClick={() => setActiveTab(item.id)}
+                                variant={isActive ? "default" : "ghost"}
+                                className={`w-full justify-start text-left h-auto p-3 mb-1 ${
+                                    isActive ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-50 text-gray-700"
+                                }`}
+                                onClick={() => {
+                                    onTabChange(item.id)
+                                    setIsMobileMenuOpen(false)
+                                }}
                             >
-                                <item.icon className="mr-3 h-4 w-4" />
-                                {item.label}
+                                <Icon className={`h-4 w-4 mr-3 ${isActive ? "text-white" : "text-gray-500"}`} />
+                                <div>
+                                    <div className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-900"}`}>{item.label}</div>
+                                    <div className={`text-xs ${isActive ? "text-blue-100" : "text-gray-500"}`}>{item.description}</div>
+                                </div>
                             </Button>
-                        ))}
-                    </nav>
+                        )
+                    })}
                 </div>
-            </div>
+            </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-700 space-y-2">
-                <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700">
-                    <Settings className="mr-3 h-4 w-4" />
-                    Settings
+            <div className="p-4 border-t border-gray-200">
+                <Button
+                    variant="ghost"
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleLogout}
+                >
+                    <LogOut className="h-4 w-4 mr-3" />
+                    Sign Out
                 </Button>
-
-                <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700">
-                    <HelpCircle className="mr-3 h-4 w-4" />
-                    Get Help
-                </Button>
-
-                <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700">
-                    <Search className="mr-3 h-4 w-4" />
-                    Search
-                </Button>
-
-                {/* User Profile */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-start p-2 h-auto">
-                            <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                                    <AvatarFallback className="bg-gray-600">
-                                        <User className="h-4 w-4" />
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 text-left">
-                                    <div className="text-sm font-medium text-white truncate">{user?.name || "Admin User"}</div>
-                                    <div className="text-xs text-gray-400 truncate">{user?.email || "admin@example.com"}</div>
-                                </div>
-                            </div>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 bg-gray-800 border-gray-700">
-                        <DropdownMenuItem className="text-gray-300 hover:text-white hover:bg-gray-700">
-                            <User className="mr-2 h-4 w-4" />
-                            Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-gray-300 hover:text-white hover:bg-gray-700">
-                            <Settings className="mr-2 h-4 w-4" />
-                            Settings
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-gray-700" />
-                        <DropdownMenuItem className="text-red-400 hover:text-red-300 hover:bg-gray-700" onClick={onLogout}>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Sign out
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
             </div>
         </div>
+    )
+
+    return (
+        <>
+            {/* Mobile Menu Button */}
+            <div className="lg:hidden fixed top-4 left-4 z-50">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="bg-white shadow-md"
+                >
+                    {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                </Button>
+            </div>
+
+            {/* Desktop Sidebar */}
+            <div className="hidden lg:block w-80 h-screen fixed left-0 top-0 z-40">
+                <SidebarContent />
+            </div>
+
+            {/* Mobile Sidebar */}
+            {isMobileMenuOpen && (
+                <div className="lg:hidden fixed inset-0 z-40">
+                    <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsMobileMenuOpen(false)} />
+                    <div className="fixed left-0 top-0 w-80 h-full z-50">
+                        <SidebarContent />
+                    </div>
+                </div>
+            )}
+        </>
     )
 }

@@ -8,6 +8,7 @@ import { NotificationService } from "../notifications/notification.service";
 import { AuthResponseDto, VerificationResponseDto } from "./dto/auth-response.dto";
 import { UserRole } from '@prisma/client/index';
 import {PrismaService} from "../../../db";
+import { randomInt, timingSafeEqual } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -55,8 +56,8 @@ export class AuthService {
         }
       }
 
-      // Generate 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate 6-digit code (cryptographically secure; randomInt's upper bound is exclusive)
+      const code = randomInt(100000, 1000000).toString();
       const expires = new Date(Date.now() + this.CODE_EXPIRY);
 
       // Store code
@@ -73,19 +74,15 @@ export class AuthService {
           `Your verification code is: ${code}. Valid for 10 minutes.`,
       );
 
-      // Create or update user if name is provided (separate transaction)
-      if (name) {
-        try {
-          await this.usersService.createOrUpdateUser({
-            email,
-            name,
-            role: UserRole.SUPER_ADMIN, // Default role for admin verification
-          });
-        } catch (error) {
-          this.logger.warn(`Failed to create/update user ${email}: ${error.message}`);
-          // Don't fail the entire flow if user creation fails
-        }
-      }
+      // SECURITY: do NOT create users or assign roles here. This endpoint is
+      // unauthenticated, so the previous behaviour — creating a user with
+      // role: SUPER_ADMIN for any submitted email+name — was a privilege-escalation
+      // hole that let anyone mint a super-admin. Admin accounts must be provisioned
+      // out-of-band (DB seed, or an existing SUPER_ADMIN inviting them). Login
+      // (verifyEmailAndLogin / adminLogin) already requires a pre-existing admin role,
+      // so a code sent to a non-admin grants nothing. The `name` param is intentionally
+      // unused now and kept only for request-shape compatibility.
+      void name;
 
       this.logger.log(`Verification code sent to ${email}`);
       return {
@@ -125,7 +122,7 @@ export class AuthService {
       throw new UnauthorizedException('Maximum verification attempts exceeded. Please request a new code.');
     }
 
-    if (storedData.code !== verificationCode) {
+    if (!this.codesMatch(storedData.code, verificationCode)) {
       storedData.attempts++;
       throw new UnauthorizedException(`Invalid verification code. ${this.MAX_ATTEMPTS - storedData.attempts} attempts remaining.`);
     }
@@ -341,6 +338,17 @@ export class AuthService {
     return { access_token, refresh_token };
   }
 
+  // Constant-time comparison of short codes to avoid timing side-channels.
+  // The length check leaks only length, which is fixed (6 digits), so it reveals nothing.
+  private codesMatch(expected: string, provided: string): boolean {
+    const a = Buffer.from(expected ?? '', 'utf8');
+    const b = Buffer.from(provided ?? '', 'utf8');
+    if (a.length !== b.length) {
+      return false;
+    }
+    return timingSafeEqual(a, b);
+  }
+
   // Cleanup expired verification codes (run periodically)
   cleanupExpiredCodes() {
     const now = new Date();
@@ -361,8 +369,8 @@ export class AuthService {
         return { message: 'If the email exists, a reset link has been sent.' };
       }
 
-      // Generate reset token
-      const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate reset token (cryptographically secure; randomInt's upper bound is exclusive)
+      const resetToken = randomInt(100000, 1000000).toString();
       const expires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
       // Store reset token
@@ -391,7 +399,7 @@ export class AuthService {
   async resetPassword(email: string, resetToken: string, newPassword: string): Promise<{ message: string }> {
     const storedData = this.verificationCodes.get(`reset_${email}`);
 
-    if (!storedData || storedData.code !== resetToken || storedData.expires < new Date()) {
+    if (!storedData || storedData.expires < new Date() || !this.codesMatch(storedData.code, resetToken)) {
       this.verificationCodes.delete(`reset_${email}`);
       throw new UnauthorizedException('Invalid or expired reset token');
     }

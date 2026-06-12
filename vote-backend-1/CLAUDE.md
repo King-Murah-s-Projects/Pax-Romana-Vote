@@ -46,7 +46,9 @@ DIRECT_URL="postgresql://localhost:5432/vote" ./node_modules/.bin/prisma validat
 pnpm run db:push:dev
 
 # Generate migration
-./node_modules/.bin/prisma migrate dev --name <name>
+# NOTE: `prisma migrate dev` requires a TTY and fails in Claude Code's shell.
+# Instead: write SQL to prisma/migrations/<timestamp>_<name>/migration.sql, then:
+./node_modules/.bin/prisma migrate deploy
 ```
 
 **Environment files:**

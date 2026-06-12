@@ -9,9 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 /// ============= ENUMS =============
@@ -45,13 +43,6 @@ enum NominationStatus {
   WITHDRAWN
 
   @@map("nomination_statuses")
-}
-
-enum TokenType {
-  NOMINATOR_VERIFICATION
-  GUARANTOR_VERIFICATION
-  ONE_VERIFICATION
-  PASSWORD_RESET
 }
 
 enum VerificationTargetType {
@@ -214,7 +205,6 @@ model EcReview {
 model VerificationToken {
   id               String                 @id @default(cuid())
   token            String                 @unique
-  type             TokenType
   email            String?
   phone            String?
   expiresAt        DateTime

@@ -160,7 +160,6 @@ export class NominationService {
         await this.prisma.verificationToken.create({
             data: {
                 token: nominatorToken,
-                type: 'NOMINATOR_VERIFICATION',
                 email: nomination.nominatorVerification!.email,
                 expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
                 verificationId: nomination.nominatorVerification!.id,
@@ -171,7 +170,6 @@ export class NominationService {
         await this.prisma.verificationToken.createMany({
             data: guarantorTokens.map((token, index) => ({
                 token,
-                type: 'GUARANTOR_VERIFICATION',
                 email: nomination.guarantorVerifications[index].email,
                 expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
                 verificationId: nomination.guarantorVerifications[index].id,

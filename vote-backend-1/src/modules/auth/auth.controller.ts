@@ -12,7 +12,7 @@ import {
 import { AuthService } from './auth.service';
 import { AdminLoginDto, RefreshTokenDto } from "./dto/login.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { IsEmail, IsString, MinLength } from 'class-validator';
 
@@ -61,6 +61,7 @@ export class AuthController {
 
   // Send email verification code
   @Post('send-code')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async sendVerificationCode(@Body() dto: SendVerificationCodeDto): Promise<{
     action: string;
@@ -81,6 +82,7 @@ export class AuthController {
 
   // Verify email code and login
   @Post('verify-email')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async verifyEmailAndLogin(@Body() dto: VerifyEmailCodeDto): Promise<{
     access_token: string;
@@ -97,6 +99,7 @@ export class AuthController {
 
   // Direct admin login with email/password
   @Post('admin-login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async adminLogin(@Body() adminLoginDto: AdminLoginDto): Promise<{
     access_token: string;
@@ -150,6 +153,7 @@ export class AuthController {
 
   // Request password reset
   @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async requestPasswordReset(@Body() dto: PasswordResetRequestDto): Promise<{ message: string }> {
     try {
@@ -162,6 +166,7 @@ export class AuthController {
 
   // Reset password with token
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: PasswordResetDto): Promise<{ message: string }> {
     try {

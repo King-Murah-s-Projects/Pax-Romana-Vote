@@ -2,7 +2,7 @@ import { PrismaService } from "../../../../db";
 import { NominationWorkflowService } from "./nomination-workflow.service";
 import { VerificationResponseDto } from "../../auth/dto/auth-response.dto";
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { VerificationStatus, TokenType, GuarantorVerification, NominatorVerification } from "@prisma/client/index";
+import { VerificationStatus, VerificationTargetType, GuarantorVerification, NominatorVerification } from "@prisma/client/index";
 
 @Injectable()
 export class GuarantorVerificationService {
@@ -122,7 +122,7 @@ export class GuarantorVerificationService {
             nomination: guarantorVerification.nomination,
             guarantorName: guarantorVerification.name,
             guarantorEmail: guarantorVerification.email,
-            tokenType: TokenType.GUARANTOR_VERIFICATION,
+            tokenType: VerificationTargetType.GUARANTOR,
             isExpired,
             isAlreadyVerified: guarantorVerification.status !== VerificationStatus.PENDING,
             verificationStatus: guarantorVerification.status,

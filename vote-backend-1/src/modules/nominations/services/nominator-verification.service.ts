@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../../db';
 import { NominationWorkflowService } from './nomination-workflow.service';
 import { VerificationResponseDto } from '../dto/verification-response.dto';
-import { VerificationStatus, TokenType } from '@prisma/client/index';
+import { VerificationStatus, VerificationTargetType } from '@prisma/client/index';
 
 @Injectable()
 export class NominatorVerificationService {
@@ -132,7 +132,7 @@ export class NominatorVerificationService {
             nomination: nominatorVerification.nomination,
             nominatorName: nominatorVerification.name,
             nominatorEmail: nominatorVerification.email,
-            tokenType: TokenType.NOMINATOR_VERIFICATION,
+            tokenType: VerificationTargetType.NOMINATOR,
             isExpired,
             isAlreadyVerified: nominatorVerification.status !== VerificationStatus.PENDING,
             verificationStatus: nominatorVerification.status,

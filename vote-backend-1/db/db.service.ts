@@ -1,18 +1,20 @@
-import {Injectable, OnModuleInit, OnModuleDestroy, Logger} from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {PrismaClient} from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(PrismaService.name);
 
     constructor(private configService: ConfigService) {
+        const connectionString = configService.get<string>('DATABASE_URL');
+        const pool = new Pool({ connectionString });
+        const adapter = new PrismaPg(pool);
+
         super({
-            datasources: {
-                db: {
-                    url: configService.get('DATABASE_URL'),
-                },
-            },
+            adapter,
             // Enhanced transaction configuration to prevent P2028 errors
             transactionOptions: {
                 maxWait: 5000, // 5 seconds max wait time for transaction to start

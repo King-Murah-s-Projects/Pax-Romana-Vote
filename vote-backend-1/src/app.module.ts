@@ -1,6 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -13,13 +13,11 @@ import { NominationModule } from './modules/nominations/nomination.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { DbModule } from '../db';
-import { CustomThrottlerGuard } from './throttler.guard';
 import { CandidatesModule } from './modules/candidates/candidates.module';
 import { ResultsModule } from './modules/results/results.module';
 import { RealTimeModule } from './modules/real-time/real-time.module';
 import { CacheModule } from './modules/caches/cache.module';
 import { VotingModule } from './modules/voting/voting.module';
-import { SupabaseModule } from './modules/supabase';
 
 @Module({
     imports: [
@@ -38,12 +36,11 @@ import { SupabaseModule } from './modules/supabase';
         RealTimeModule,
         CacheModule,
         VotingModule,
-        SupabaseModule,
     ],
     controllers: [AppController],
     providers: [
         AppService,
-        { provide: APP_GUARD, useClass: CustomThrottlerGuard },
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
     ],
 })
 export class AppModule {

@@ -3,7 +3,6 @@ import { NotificationService } from './notification.service';
 import { PrismaService } from '../../../db';
 import { MnotifySmsService } from './service/mnotify-sms.service';
 import { EmailService } from './service/email.service';
-import { NotificationQueueService } from './service/notification-queue.service';
 import { AdminNotificationsService } from './service/admin-notifications.service';
 
 const mockSmsService = {
@@ -21,7 +20,6 @@ const mockPrisma = {
     user: { findMany: jest.fn(), findUnique: jest.fn() },
     nomination: { findUnique: jest.fn() },
 };
-const mockQueueService = {};
 const mockAdminNotificationsService = {
     notifyNominationReady: jest.fn(),
     notifyEcMemberOfDecision: jest.fn(),
@@ -37,7 +35,6 @@ describe('NotificationService', () => {
                 { provide: MnotifySmsService, useValue: mockSmsService },
                 { provide: EmailService, useValue: mockEmailService },
                 { provide: PrismaService, useValue: mockPrisma },
-                { provide: NotificationQueueService, useValue: mockQueueService },
                 { provide: AdminNotificationsService, useValue: mockAdminNotificationsService },
             ],
         }).compile();

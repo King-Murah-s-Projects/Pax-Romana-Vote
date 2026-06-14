@@ -1,17 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NominationsController } from './nominations.controller';
-import { NominationsService } from './nominations.service';
+import { NominationController } from './nominations.controller';
+import { NominationService } from './services/nomination.service';
+import { NominatorVerificationService } from './services/nominator-verification.service';
+import { GuarantorVerificationService } from './services/guarantor-verification.service';
 
-describe('NominationsController', () => {
-  let controller: NominationsController;
+const mockNominationService = {
+  create: jest.fn(),
+  findAll: jest.fn().mockResolvedValue([]),
+  findOne: jest.fn(),
+  getStatistics: jest.fn().mockResolvedValue({}),
+};
+const mockNominatorVerificationService = {
+  verifyNominator: jest.fn(),
+  getVerificationDetails: jest.fn(),
+};
+const mockGuarantorVerificationService = {
+  verifyGuarantor: jest.fn(),
+  getVerificationDetails: jest.fn(),
+};
+
+describe('NominationController', () => {
+  let controller: NominationController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [NominationsController],
-      providers: [NominationsService],
+      controllers: [NominationController],
+      providers: [
+        { provide: NominationService, useValue: mockNominationService },
+        { provide: NominatorVerificationService, useValue: mockNominatorVerificationService },
+        { provide: GuarantorVerificationService, useValue: mockGuarantorVerificationService },
+      ],
     }).compile();
 
-    controller = module.get<NominationsController>(NominationsController);
+    controller = module.get<NominationController>(NominationController);
   });
 
   it('should be defined', () => {

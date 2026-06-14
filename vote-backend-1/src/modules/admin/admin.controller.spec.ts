@@ -1,17 +1,30 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AdminController } from './admin.controllers';
-import { AdminService } from './services/admin.service';
+import { AdminDashboardController } from './controllers/admin-dashboard.controller';
+import { AdminDashboardService } from './services/admin-dashboard.service';
+import { NominationStatisticsService } from './services/nomination-statistics.service';
 
-describe('AdminController', () => {
-  let controller: AdminController;
+const mockDashboardService = {
+  getDashboardData: jest.fn().mockResolvedValue({}),
+  getStatistics: jest.fn().mockResolvedValue({}),
+  getSystemHealth: jest.fn().mockResolvedValue({}),
+};
+const mockStatisticsService = {
+  getStatistics: jest.fn().mockResolvedValue({}),
+};
+
+describe('AdminDashboardController', () => {
+  let controller: AdminDashboardController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [AdminController],
-      providers: [AdminService],
+      controllers: [AdminDashboardController],
+      providers: [
+        { provide: AdminDashboardService, useValue: mockDashboardService },
+        { provide: NominationStatisticsService, useValue: mockStatisticsService },
+      ],
     }).compile();
 
-    controller = module.get<AdminController>(AdminController);
+    controller = module.get<AdminDashboardController>(AdminDashboardController);
   });
 
   it('should be defined', () => {

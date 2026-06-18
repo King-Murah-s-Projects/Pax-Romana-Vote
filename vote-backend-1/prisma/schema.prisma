@@ -322,22 +322,6 @@ model Vote {
   @@map("votes")
 }
 
-// ============= EC GOVERNANCE =============
-
-/// Audit log for every chair override — records actor, decision, and reason.
-/// Only written when the override is deadlock-only (ADR-0003).
-model ChairOverrideLog {
-  id           String     @id @default(cuid())
-  nominationId String
-  nomination   Nomination @relation(fields: [nominationId], references: [id])
-  actorId      String
-  decision     String
-  reason       String
-  createdAt    DateTime   @default(now())
-
-  @@map("chair_override_logs")
-}
-
 // ============= ANONYMOUS BALLOT (ADR-0001) =============
 
 /// Anonymous, unlinkable ballot row. Contains no voter identity — no userId,

@@ -1,7 +1,8 @@
-import {Body, Controller, Get, HttpStatus, Param, ParseEnumPipe, Post, Res, UseGuards} from "@nestjs/common";
+import {Body, Controller, Get, HttpStatus, Param, ParseEnumPipe, Post, Query, Res, UseGuards} from "@nestjs/common";
 import { ResultsService } from "./services/results.service";
 import { CertificationService } from "./services/certification.service";
 import { VoteCountingService } from "./services/vote-counting.service";
+import { TallyService } from "./services/tally.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import {RolesGuard} from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -18,7 +19,26 @@ export class ResultsController {
       private resultsService: ResultsService,
       private certificationService: CertificationService,
       private voteCountingService: VoteCountingService,
+      private tallyService: TallyService,
   ) {}
+
+  /**
+   * Get public turnout only — no per-candidate breakdown during voting.
+   */
+  @Get('turnout')
+  async getTurnout() {
+    return this.tallyService.getTurnout();
+  }
+
+  /**
+   * Post-close tally from anonymous Ballot rows (admin only, voting must be closed).
+   */
+  @Get('tally')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
+  async getTally(@Query('position') position?: Candidate_Position) {
+    return this.tallyService.computeTally(position);
+  }
 
   /**
    * Get public election results (limited data)
@@ -306,17 +326,6 @@ export class ResultsController {
     });
 
     res.status(HttpStatus.OK).send(buffer);
-  }
-
-  /**
-   * Update candidate vote counts in database
-   */
-  @Post('update-counts')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
-  async updateCandidateVoteCounts() {
-    await this.voteCountingService.updateCandidateVoteCounts();
-    return { message: 'Candidate vote counts updated successfully' };
   }
 
   /**

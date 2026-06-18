@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
-import { NotificationService } from './notification.service';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { MnotifySmsService } from './service/mnotify-sms.service';
+import { EmailService } from './service/email.service';
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -9,21 +10,18 @@ import { UserRole } from "@prisma/client/index";
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN)
 export class NotificationTestController {
-  constructor(private notificationsService: NotificationService) {}
+  constructor(
+    private smsService: MnotifySmsService,
+    private emailService: EmailService,
+  ) {}
 
   @Post('sms')
   async testSms(@Body() body: { phoneNumber: string; message: string }) {
-    return this.notificationsService.sendSms(body.phoneNumber, body.message);
+    return this.smsService.sendSms({ to: body.phoneNumber, message: body.message });
   }
 
   @Post('email')
   async testEmail(@Body() body: { email: string; subject: string; message: string }) {
-    return this.notificationsService.sendEmail(body.email, body.subject, body.message);
-  }
-
-  @Post('verification-code')
-  async testVerificationCode(@Body() body: { phoneNumber: string }) {
-    const code = '123456';
-    return this.notificationsService.sendVerificationCode(body.phoneNumber, code);
+    return this.emailService.sendEmail({ to: body.email, subject: body.subject, text: body.message });
   }
 }

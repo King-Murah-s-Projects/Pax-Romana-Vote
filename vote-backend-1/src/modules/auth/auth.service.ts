@@ -4,7 +4,7 @@ import { UsersService } from "../users/users.service";
 import { AdminLoginDto, RefreshTokenDto } from "./dto/login.dto";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
-import { NotificationService } from "../notifications/notification.service";
+import { EmailService } from "../notifications/service/email.service";
 import { AuthResponseDto, VerificationResponseDto } from "./dto/auth-response.dto";
 import { UserRole } from '@prisma/client/index';
 import {PrismaService} from "../../../db";
@@ -23,7 +23,7 @@ export class AuthService {
       private configService: ConfigService,
       private usersService: UsersService,
       private prisma: PrismaService,
-      private notificationsService: NotificationService
+      private notificationsService: EmailService
   ) {
     this.logger.log('AuthService initialized');
   }
@@ -68,11 +68,11 @@ export class AuthService {
       });
 
       // Send email verification code first (non-blocking)
-      await this.notificationsService.sendEmail(
-          email,
-          'Pax Romana KNUST - Verification Code',
-          `Your verification code is: ${code}. Valid for 10 minutes.`,
-      );
+      await this.notificationsService.sendEmail({
+          to: email,
+          subject: 'Pax Romana KNUST - Verification Code',
+          text: `Your verification code is: ${code}. Valid for 10 minutes.`,
+      });
 
       // SECURITY: do NOT create users or assign roles here. This endpoint is
       // unauthenticated, so the previous behaviour — creating a user with
@@ -381,11 +381,11 @@ export class AuthService {
       });
 
       // Send reset email
-      await this.notificationsService.sendEmail(
-          email,
-          'Pax Romana KNUST - Password Reset',
-          `Your password reset code is: ${resetToken}. Valid for 30 minutes.`,
-      );
+      await this.notificationsService.sendEmail({
+          to: email,
+          subject: 'Pax Romana KNUST - Password Reset',
+          text: `Your password reset code is: ${resetToken}. Valid for 30 minutes.`,
+      });
 
       this.logger.log(`Password reset requested for ${email}`);
       return { message: 'If the email exists, a reset link has been sent.' };

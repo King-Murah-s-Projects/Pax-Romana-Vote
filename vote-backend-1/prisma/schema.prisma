@@ -43,6 +43,7 @@ enum NominationStatus {
   APPROVED
   REJECTED
   WITHDRAWN
+  NEEDS_ATTENTION // An endorser declined or repudiated — recoverable while window is open
 
   @@map("nomination_statuses")
 }
@@ -84,8 +85,16 @@ enum VerificationStatus {
   VERIFIED
   DECLINED
   EXPIRED
+  REPUDIATED
 
   @@map("verification_statuses")
+}
+
+enum VerificationRole {
+  NOMINATOR
+  GUARANTOR
+
+  @@map("verification_roles")
 }
 
 // ============= MAIN MODELS =============
@@ -113,7 +122,8 @@ model User {
   ecReviews             EcReview[]              @relation("Reviewer")
   votingSessions        VotingSession[]
   auditLogs             AuditLog[]
-  chairOverrideLogs     ChairOverrideLog[]      @relation("OverrideActor")
+  verifications         Verification[]          @relation("Endorser")
+  passwordResetTokens   PasswordResetToken[]
   subgroupRef           Subgroup?               @relation(fields: [subgroupId], references: [id])
   subgroupId            String?
 }
@@ -156,6 +166,7 @@ model Nomination {
   rejectionReason        String?
   nominatorVerification  NominatorVerification?
   guarantorVerifications GuarantorVerification[]
+  verifications          Verification[]
   ecReviews              EcReview[]
   chairOverrideLogs      ChairOverrideLog[]
   candidate              Candidate?
@@ -333,19 +344,58 @@ model ParticipationRecord {
   @@map("participation_records")
 }
 
-/// Records a SUPER_ADMIN chair override used to break a deadlocked EC vote.
-/// A chair override is only valid when deadlocked; cannot overturn a reached consensus.
-model ChairOverrideLog {
-  id           String     @id @default(cuid())
-  nominationId String
-  nomination   Nomination @relation(fields: [nominationId], references: [id])
-  actorId      String
-  actor        User       @relation("OverrideActor", fields: [actorId], references: [id])
-  decision     String     // 'APPROVE' | 'REJECT'
-  reason       String
-  createdAt    DateTime   @default(now())
+// ============= UNIFIED VERIFICATION (ADR-0007) =============
 
-  @@map("chair_override_logs")
+/// Unified endorsement record replacing NominatorVerification + GuarantorVerification.
+/// role discriminates NOMINATOR vs GUARANTOR; status uses the Prisma enum (never raw strings).
+/// VerificationToken carries a real FK to this model — no polymorphic pattern.
+model Verification {
+  id                String             @id @default(cuid())
+  nominationId      String
+  nomination        Nomination         @relation(fields: [nominationId], references: [id])
+  role              VerificationRole
+  endorserName      String
+  endorserEmail     String
+  endorserId        String?
+  endorser          User?              @relation("Endorser", fields: [endorserId], references: [id])
+  status            VerificationStatus @default(PENDING)
+  comments          String?
+  verifiedAt        DateTime?
+  declinedAt        DateTime?
+  repudiatedAt      DateTime?
+  repudiationReason String?
+  token             EndorsementToken?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("verifications")
+}
+
+/// Real-FK replacement for the polymorphic VerificationToken pattern.
+/// One-to-one with Verification; password resets use PasswordResetToken instead.
+model EndorsementToken {
+  id             String       @id @default(cuid())
+  verificationId String       @unique
+  verification   Verification @relation(fields: [verificationId], references: [id])
+  token          String       @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@map("endorsement_tokens")
+}
+
+/// Dedicated password-reset token, separated from verification tokens.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
 }
 
 // ============= AUDIT & LOGGING =============

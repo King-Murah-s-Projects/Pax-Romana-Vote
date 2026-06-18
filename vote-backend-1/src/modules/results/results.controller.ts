@@ -1,12 +1,12 @@
-import {Body, Controller, Get, HttpStatus, Param, ParseEnumPipe, Post, Res, UseGuards} from "@nestjs/common";
+import {Body, Controller, Get, HttpStatus, Param, ParseEnumPipe, Post, Query, Res, UseGuards} from "@nestjs/common";
 import { ResultsService } from "./services/results.service";
 import { CertificationService } from "./services/certification.service";
 import { VoteCountingService } from "./services/vote-counting.service";
+import { TallyService } from "./services/tally.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import {RolesGuard} from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import {Candidate_Position, UserRole} from "@prisma/client/index";
-import {CertifyResultsDto} from "./dto/certification.dto";
 import {CurrentUser} from "../auth/decorators/current-user.decorator";
 import {ExportOptionsDto} from "./dto/export-options.dto";
 import {ExportFormat} from "./enums/result-status.enum";
@@ -18,7 +18,26 @@ export class ResultsController {
       private resultsService: ResultsService,
       private certificationService: CertificationService,
       private voteCountingService: VoteCountingService,
+      private tallyService: TallyService,
   ) {}
+
+  /**
+   * Get public turnout only — no per-candidate breakdown during voting.
+   */
+  @Get('turnout')
+  async getTurnout() {
+    return this.tallyService.getTurnout();
+  }
+
+  /**
+   * Post-close tally from anonymous Ballot rows (admin only, voting must be closed).
+   */
+  @Get('tally')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
+  async getTally(@Query('position') position?: Candidate_Position) {
+    return this.tallyService.computeTally(position);
+  }
 
   /**
    * Get public election results (limited data)
@@ -81,26 +100,39 @@ export class ResultsController {
   }
 
   /**
-   * Certify election results (Super Admin only)
+   * Certify a single position's result (SUPER_ADMIN only, post-close).
    */
-  @Post('certify')
+  @Post('certify/:position')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  async certifyResults(
-      @Body() certifyDto: CertifyResultsDto,
-      @CurrentUser() user: any
+  async certifyPosition(
+    @Param('position', new ParseEnumPipe(Candidate_Position)) position: Candidate_Position,
+    @CurrentUser() user: any,
+    @Body('notes') notes?: string,
   ) {
-    return this.certificationService.certifyResults(certifyDto, user.id);
+    return this.certificationService.certifyPosition(position, user.id, notes);
   }
 
   /**
-   * Get certification history
+   * List all certified positions.
    */
   @Get('certifications')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
-  async getCertificationHistory() {
-    return this.certificationService.getCertificationHistory();
+  async listCertifications() {
+    return this.certificationService.listCertifications();
+  }
+
+  /**
+   * Get certification for a specific position.
+   */
+  @Get('certifications/:position')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
+  async getCertification(
+    @Param('position', new ParseEnumPipe(Candidate_Position)) position: Candidate_Position,
+  ) {
+    return this.certificationService.getCertification(position);
   }
 
   /**
@@ -306,17 +338,6 @@ export class ResultsController {
     });
 
     res.status(HttpStatus.OK).send(buffer);
-  }
-
-  /**
-   * Update candidate vote counts in database
-   */
-  @Post('update-counts')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
-  async updateCandidateVoteCounts() {
-    await this.voteCountingService.updateCandidateVoteCounts();
-    return { message: 'Candidate vote counts updated successfully' };
   }
 
   /**

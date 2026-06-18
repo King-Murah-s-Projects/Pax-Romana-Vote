@@ -1,10 +1,9 @@
 import {Injectable, Logger} from "@nestjs/common";
 import {PrismaService} from "../../../../db";
 import {CacheService} from "../../caches/cache.service";
-import {DecryptedVote, PositionResult, VoteCount} from "../types/results.types";
+import {PositionResult, VoteCount} from "../types/results.types";
 import {Candidate_Position, UserRole} from "@prisma/client/index";
 import {CertificationStatus, ResultStatus} from "../enums/result-status.enum";
-import {VoteEncryptionService} from "./vote-encryption.service";
 
 @Injectable()
 export class VoteCountingService {
@@ -14,7 +13,6 @@ export class VoteCountingService {
     constructor(
         private prisma: PrismaService,
         private cacheService: CacheService,
-        private encryption: VoteEncryptionService,
     ) {}
 
     /**
@@ -63,11 +61,16 @@ export class VoteCountingService {
             where: { role: UserRole.VOTER, isActive: true },
         });
 
-        // Decrypt and count votes
-        const decryptedVotes = await this.decryptAllVotes();
-        const positionVotes = decryptedVotes
-            .map(vote => vote.selections[position])
-            .filter(candidateId => candidateId);
+        // Count from anonymous Ballot rows (post-close tally, ADR-0004)
+        const ballotGroups = await this.prisma.ballot.groupBy({
+            by: ['candidateId'],
+            where: { position },
+            _count: { candidateId: true },
+        });
+
+        const positionVotes: string[] = ballotGroups.flatMap(g =>
+            Array(g._count.candidateId).fill(g.candidateId)
+        );
 
         const totalVotes = positionVotes.length;
         const turnoutPercentage = totalEligibleVoters > 0
@@ -105,40 +108,15 @@ export class VoteCountingService {
     }
 
     /**
-     * Decrypt all votes (production implementation)
+     * Clear all result cache
      */
-    private async decryptAllVotes(): Promise<DecryptedVote[]> {
-        const cacheKey = 'decrypted_votes_all';
-
-        // Check cache first (cache for 5 minutes)
-        const cached = await this.cacheService.get(cacheKey);
-        if (cached) {
-            this.logger.log('Retrieved decrypted votes from cache');
-            return cached as DecryptedVote[];
+    async clearResultsCache(): Promise<void> {
+        const positions = Object.values(Candidate_Position);
+        for (const position of positions) {
+            await this.cacheService.del(`position_results:${position}`);
         }
-
-        // Decrypt all votes
-        const decryptedVotes = await this.encryption.decryptAllVotes();
-
-        // Cache the results
-        await this.cacheService.set(cacheKey, decryptedVotes, 300); // 5 minutes
-
-        return decryptedVotes;
-    }
-
-    /**
-     * Decrypt individual vote (production implementation)
-     */
-    private decryptVote(encryptedVote: string): Record<Candidate_Position, string> {
-        return this.encryption.decryptVote(encryptedVote);
-    }
-
-    /**
-     * Clear decrypted votes cache when new votes come in
-     */
-    async clearDecryptedVotesCache(): Promise<void> {
-        await this.cacheService.del('decrypted_votes_all');
-        this.logger.log('Decrypted votes cache cleared');
+        await this.cacheService.del('all_results_summary');
+        this.logger.log('Results cache cleared');
     }
 
     /**
@@ -252,35 +230,4 @@ export class VoteCountingService {
         };
     }
 
-    /**
-     * Clear all result cache
-     */
-    async clearResultsCache(): Promise<void> {
-        const positions = Object.values(Candidate_Position);
-
-        for (const position of positions) {
-            await this.cacheService.del(`position_results:${position}`);
-        }
-
-        await this.cacheService.del('all_results_summary');
-        this.logger.log('Results cache cleared');
-    }
-
-    /**
-     * Update candidate vote counts in a database (for performance)
-     */
-    async updateCandidateVoteCounts(): Promise<void> {
-        const results = await this.countAllVotes();
-
-        for (const positionResult of results) {
-            for (const candidate of positionResult.candidates) {
-                await this.prisma.candidate.update({
-                    where: { id: candidate.candidateId },
-                    data: { voteCount: candidate.voteCount },
-                });
-            }
-        }
-
-        this.logger.log('Candidate vote counts updated in database');
-    }
 }

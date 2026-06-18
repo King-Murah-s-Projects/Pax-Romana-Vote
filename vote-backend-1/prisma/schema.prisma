@@ -123,6 +123,7 @@ model User {
   votingSessions        VotingSession[]
   auditLogs             AuditLog[]
   verifications         Verification[]          @relation("Endorser")
+  chairOverrides        ChairOverrideLog[]      @relation("ChairOverrides")
   passwordResetTokens   PasswordResetToken[]
   subgroupRef           Subgroup?               @relation(fields: [subgroupId], references: [id])
   subgroupId            String?
@@ -162,6 +163,8 @@ model Nomination {
   knowledgeAboutOffice   String[]
   approvalCount          Int                     @default(0)
   rejectionCount         Int                     @default(0)
+  replacementCount       Int                     @default(0)
+  repudiationEscalated   Boolean                 @default(false)
   reviewedAt             DateTime?
   rejectionReason        String?
   nominatorVerification  NominatorVerification?
@@ -482,6 +485,19 @@ model Programme {
   isActive Boolean @default(true)
 
   @@map("programmes")
+}
+
+model ChairOverrideLog {
+  id           String     @id @default(cuid())
+  nominationId String
+  nomination   Nomination @relation(fields: [nominationId], references: [id])
+  actorId      String
+  actor        User       @relation("ChairOverrides", fields: [actorId], references: [id])
+  decision     String
+  reason       String
+  createdAt    DateTime   @default(now())
+
+  @@map("chair_override_logs")
 }
 
 // ============= SYSTEM CONFIGURATION =============

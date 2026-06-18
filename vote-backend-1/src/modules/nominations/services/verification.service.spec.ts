@@ -1,5 +1,5 @@
 import { VerificationService } from './verification.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 const makeVerification = (role: 'NOMINATOR' | 'GUARANTOR', status: string) => ({
   id: `v-${role}-${status}`,
@@ -22,13 +22,19 @@ const makePrisma = (verifications: any[] = []) => ({
   },
 });
 
+const makeWorkflow = () => ({
+  handleRepudiation: jest.fn().mockResolvedValue(undefined),
+  transition: jest.fn().mockResolvedValue(undefined),
+  assertVerifiable: jest.fn().mockResolvedValue(undefined),
+  enforceReplacementCap: jest.fn().mockResolvedValue(undefined),
+  incrementReplacementCount: jest.fn().mockResolvedValue(undefined),
+});
+
 describe('VerificationService', () => {
   describe('isNominationVerified', () => {
     it('returns false when there are 0 guarantors', async () => {
-      const prisma = makePrisma([
-        makeVerification('NOMINATOR', 'VERIFIED'),
-      ]);
-      const svc = new VerificationService(prisma as any);
+      const prisma = makePrisma([makeVerification('NOMINATOR', 'VERIFIED')]);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       expect(await svc.isNominationVerified('nom-1')).toBe(false);
     });
 
@@ -37,7 +43,7 @@ describe('VerificationService', () => {
         makeVerification('NOMINATOR', 'VERIFIED'),
         makeVerification('GUARANTOR', 'VERIFIED'),
       ]);
-      const svc = new VerificationService(prisma as any);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       expect(await svc.isNominationVerified('nom-1')).toBe(false);
     });
 
@@ -47,7 +53,7 @@ describe('VerificationService', () => {
         makeVerification('GUARANTOR', 'VERIFIED'),
         { ...makeVerification('GUARANTOR', 'VERIFIED'), id: 'v-GUARANTOR-2' },
       ]);
-      const svc = new VerificationService(prisma as any);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       expect(await svc.isNominationVerified('nom-1')).toBe(true);
     });
 
@@ -57,7 +63,7 @@ describe('VerificationService', () => {
         makeVerification('GUARANTOR', 'VERIFIED'),
         { ...makeVerification('GUARANTOR', 'DECLINED'), id: 'v-GUARANTOR-declined' },
       ]);
-      const svc = new VerificationService(prisma as any);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       expect(await svc.isNominationVerified('nom-1')).toBe(false);
     });
 
@@ -67,7 +73,7 @@ describe('VerificationService', () => {
         makeVerification('GUARANTOR', 'VERIFIED'),
         { ...makeVerification('GUARANTOR', 'VERIFIED'), id: 'v-GUARANTOR-2' },
       ]);
-      const svc = new VerificationService(prisma as any);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       expect(await svc.isNominationVerified('nom-1')).toBe(false);
     });
   });
@@ -78,7 +84,8 @@ describe('VerificationService', () => {
       prisma.verification.findUnique = jest.fn().mockResolvedValue(
         makeVerification('GUARANTOR', 'VERIFIED'),
       );
-      const svc = new VerificationService(prisma as any);
+      const workflow = makeWorkflow();
+      const svc = new VerificationService(prisma as any, workflow as any);
       await svc.repudiate('v-GUARANTOR-VERIFIED', 'fabricated endorsement');
       expect(prisma.verification.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -91,24 +98,19 @@ describe('VerificationService', () => {
     it('throws NotFoundException when verification does not exist', async () => {
       const prisma = makePrisma();
       prisma.verification.findUnique = jest.fn().mockResolvedValue(null);
-      const svc = new VerificationService(prisma as any);
+      const svc = new VerificationService(prisma as any, makeWorkflow() as any);
       await expect(svc.repudiate('missing-id', 'reason')).rejects.toThrow(NotFoundException);
     });
 
-    it('stubs NEEDS_ATTENTION trigger on the nomination', async () => {
+    it('delegates to NominationWorkflowService.handleRepudiation', async () => {
       const prisma = makePrisma();
       prisma.verification.findUnique = jest.fn().mockResolvedValue(
         makeVerification('GUARANTOR', 'VERIFIED'),
       );
-      const svc = new VerificationService(prisma as any);
+      const workflow = makeWorkflow();
+      const svc = new VerificationService(prisma as any, workflow as any);
       await svc.repudiate('v-GUARANTOR-VERIFIED', 'reason');
-      // nomination.update called to flag NEEDS_ATTENTION
-      expect(prisma.nomination.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'nom-1' },
-          data: expect.objectContaining({ status: 'NEEDS_ATTENTION' }),
-        }),
-      );
+      expect(workflow.handleRepudiation).toHaveBeenCalledWith('nom-1');
     });
   });
 });

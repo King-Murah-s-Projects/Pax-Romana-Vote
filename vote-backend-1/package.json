@@ -22,7 +22,8 @@
     "db:push": "dotenv -e .env -- prisma db push --schema prisma/schema.prisma",
     "db:push:dev": "dotenv -e .env.dev -- prisma db push --schema prisma/schema.prisma",
     "db:push:prod": "dotenv -e .env.prod -- prisma db push --schema prisma/schema.prisma",
-    "db:seed": "dotenv -e .env -- ts-node --compilerOptions '{\"module\":\"commonjs\"}' prisma/seed.ts"
+    "db:seed": "dotenv -e .env -- ts-node --compilerOptions '{\"module\":\"commonjs\"}' prisma/seed.ts",
+    "seed:admin": "ts-node --compilerOptions '{\"module\":\"commonjs\"}' prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
@@ -119,5 +120,8 @@
   },
   "engines": {
     "node": "22.16.0"
+  },
+  "prisma": {
+    "seed": "ts-node --compilerOptions '{\"module\":\"commonjs\"}' prisma/seed.ts"
   }
 }

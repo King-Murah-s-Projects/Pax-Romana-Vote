@@ -3,7 +3,6 @@ import {
     Body,
     Controller,
     Get,
-    HttpException, HttpStatus,
     Logger,
     Param,
     Post,
@@ -12,11 +11,8 @@ import {
     UseGuards
 } from "@nestjs/common";
 import {VotingService} from "./voting.service";
-import { OtpService } from './services/otp.service';
 import { VoteSubmissionService } from './services/vote-submission.service';
 import { VotingAdminService } from './services/voting-admin.service';
-import {GenerateOtpDto} from "./dto/generate-otp.dto";
-import {VerifyOtpDto} from "./dto/verify-otp.dto";
 import {SubmitVoteDto} from "./dto/submit-vote.dto";
 import {Candidate_Position, UserRole} from "@prisma/client/index";
 import {JwtAuthGuard} from "../auth/guards/jwt-auth.guard";
@@ -31,124 +27,9 @@ export class VotingController {
 
     constructor(
         private readonly votingService: VotingService,
-        private readonly otpService: OtpService,
         private readonly voteSubmissionService: VoteSubmissionService,
         private readonly votingAdminService: VotingAdminService,
     ) {}
-
-    // ========== EXISTING ENDPOINTS (Enhanced with logging) ==========
-
-    @Post('generate-otp')
-    async generateOtp(@Body() dto: GenerateOtpDto) {
-        try {
-            this.logger.log(`OTP generation requested for: ${dto.email}`);
-            this.logger.debug(`Request payload:`, {
-                name: dto.name,
-                email: dto.email,
-                phoneNumber: dto.phoneNumber?.slice(-4), // Only log last 4 digits for privacy
-            });
-
-            // Validate the DTO manually if needed
-            if (!dto.name || !dto.email || !dto.phoneNumber) {
-                throw new HttpException({
-                    message: 'Missing required fields: name, email, and phoneNumber are required',
-                    error: 'Bad Request',
-                    statusCode: 400,
-                }, HttpStatus.BAD_REQUEST);
-            }
-
-            const result = await this.otpService.generateOtp(dto);
-
-            this.logger.log(`OTP generated successfully for: ${dto.email}`);
-            return {
-                success: true,
-                ...result
-            };
-        } catch (error) {
-            this.logger.error(`OTP generation failed for ${dto.email}:`, error.message);
-
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            throw new HttpException({
-                message: error.message || 'Failed to generate OTP',
-                error: 'Internal Server Error',
-                statusCode: 500,
-            }, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    @Post('verify-otp')
-    async verifyOtp(@Body() dto: VerifyOtpDto) {
-        try {
-            this.logger.log(`OTP verification requested for: ${dto.email}`);
-            this.logger.debug(`Verification payload:`, {
-                email: dto.email,
-                phoneNumber: dto.phoneNumber?.slice(-4), // Only log last 4 digits
-                otpLength: dto.otp?.length,
-            });
-
-            // Manual validation check
-            if (!dto.phoneNumber || !dto.otp || !dto.email) {
-                throw new HttpException({
-                    message: 'Missing required fields: phoneNumber, otp, and email are required',
-                    error: 'Validation Error',
-                    statusCode: 422,
-                }, HttpStatus.UNPROCESSABLE_ENTITY);
-            }
-
-            if (dto.otp.length !== 6 || !/^\d{6}$/.test(dto.otp)) {
-                throw new HttpException({
-                    message: 'OTP must be exactly 6 digits',
-                    error: 'Validation Error',
-                    statusCode: 422,
-                }, HttpStatus.UNPROCESSABLE_ENTITY);
-            }
-
-            const result = await this.otpService.verifyOtp(dto);
-
-            this.logger.log(`OTP verified successfully for: ${dto.email}`);
-            return result;
-        } catch (error) {
-            this.logger.error(`OTP verification failed for ${dto.email}:`, error.message);
-
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Handle specific backend service errors
-            if (error.message.includes('Invalid or expired OTP')) {
-                throw new HttpException({
-                    message: 'Invalid or expired OTP. Please request a new code.',
-                    error: 'OTP Verification Failed',
-                    statusCode: 422,
-                }, HttpStatus.UNPROCESSABLE_ENTITY);
-            }
-
-            if (error.message.includes('Email mismatch')) {
-                throw new HttpException({
-                    message: 'Email does not match the OTP request.',
-                    error: 'Email Mismatch',
-                    statusCode: 422,
-                }, HttpStatus.UNPROCESSABLE_ENTITY);
-            }
-
-            if (error.message.includes('already voted')) {
-                throw new HttpException({
-                    message: 'You have already voted in this election.',
-                    error: 'Already Voted',
-                    statusCode: 409,
-                }, HttpStatus.CONFLICT);
-            }
-
-            throw new HttpException({
-                message: error.message || 'OTP verification failed',
-                error: 'Internal Server Error',
-                statusCode: 500,
-            }, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
 
     @Get('ballot')
     async getBallot() {

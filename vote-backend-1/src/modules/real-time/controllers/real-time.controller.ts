@@ -60,7 +60,8 @@ export class RealTimeController {
      * Results stream (live results during counting)
      */
     @Get('results')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
     resultsStream(
         @Req() req: Request,
         @Res() res: Response,

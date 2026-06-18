@@ -54,6 +54,8 @@ export class ResultsController {
    * Get winner announcements (certified results only)
    */
   @Get('winners')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.EC_MEMBER)
   async getWinnerAnnouncements() {
     return this.resultsService.getWinnerAnnouncements();
   }

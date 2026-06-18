@@ -341,6 +341,21 @@ export class ResultsController {
   }
 
   /**
+   * Revoke certification (emergency use)
+   */
+  @Post('revoke-certification/:position')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async revokeCertification(
+      @Param('position', new ParseEnumPipe(Candidate_Position)) position: Candidate_Position,
+      @Body('reason') reason: string,
+      @CurrentUser() user: any
+  ) {
+    await this.certificationService.revokeCertification(position, user.id, reason);
+    return { message: `Certification revoked for ${position}` };
+  }
+
+  /**
    * Helper method to get content type for export
    */
   private getContentType(format: string | ExportFormat): string {

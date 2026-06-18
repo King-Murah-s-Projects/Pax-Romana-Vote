@@ -12,14 +12,13 @@ export class MnotifySmsService {
     private readonly axiosInstance: AxiosInstance;
 
     constructor(private configService: ConfigService) {
-        this.apiKey = this.configService.get<string>('MNOTIFY_API_KEY') || 'OSVTWtsIHfgpzjvNgRsk63zMX';
-        this.apiUrl = 'https://api.mnotify.com/api/sms/quick';
-        this.senderName = this.configService.get<string>('MNOTIFY_SENDER_ID') || 'PAX_ROMANA';
-
-        if (!this.apiKey) {
-            this.logger.error('MNOTIFY_API_KEY is not configured')
+        const apiKey = this.configService.get<string>('MNOTIFY_API_KEY');
+        if (!apiKey) {
             throw new Error('MNOTIFY_API_KEY is not configured');
         }
+        this.apiKey = apiKey;
+        this.apiUrl = 'https://api.mnotify.com/api/sms/quick';
+        this.senderName = this.configService.get<string>('MNOTIFY_SENDER_ID') || 'PAX_ROMANA';
 
         this.axiosInstance = axios.create({
             baseURL: this.apiUrl,

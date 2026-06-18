@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     // In a real implementation, you would:
     // 1. Verify the code against stored value
-    // 2. Check if code hasn't expired
+    // 2. Check if the code hasn't expired
     // 3. Validate user eligibility to vote
     // 4. Create session/JWT token
 
@@ -31,10 +31,10 @@ export async function POST(request: NextRequest) {
       verified: true,
       voterId: `voter_${Date.now()}`,
     })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("24h")
-      .sign(encodedKey)
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("24h")
+        .sign(encodedKey)
 
     return NextResponse.json({
       success: true,

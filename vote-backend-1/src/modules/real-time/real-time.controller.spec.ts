@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RealTimeController } from './real-time.controller';
+import { RealTimeController } from './controllers/real-time.controller';
 import { RealTimeService } from './services/real-time.service';
 
 describe('RealTimeController', () => {

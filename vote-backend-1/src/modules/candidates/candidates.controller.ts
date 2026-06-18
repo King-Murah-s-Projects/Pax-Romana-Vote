@@ -26,7 +26,7 @@ export class CandidatesController {
     //============= SUPER ADMIN ONLY ENDPOINTS =============
 
     @Post()
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     async create(
         @Body() createCandidateDto: CreateCandidateDto,
@@ -40,7 +40,7 @@ export class CandidatesController {
     }
 
     @Get('admin/all')
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     async findAllForAdmin() {
         return {
@@ -51,7 +51,7 @@ export class CandidatesController {
     }
 
     @Get('admin/:id')
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     async findOneForAdmin(@Param('id') id: string) {
         return {
@@ -62,7 +62,7 @@ export class CandidatesController {
     }
 
     @Patch(':id')
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     async update(@Param('id') id: string, @Body() updateCandidateDto: UpdateCandidateDto) {
         return {
@@ -73,7 +73,7 @@ export class CandidatesController {
     }
 
     @Delete(':id')
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     async remove(@Param('id') id: string) {
         await this.candidatesService.deleteCandidate(id);
@@ -84,7 +84,7 @@ export class CandidatesController {
     }
 
     @Post(':id/photo')
-    // @UseGuards(SuperAdminGuard)
+    @UseGuards(SuperAdminGuard)
     @Roles(UserRole.SUPER_ADMIN)
     @UseInterceptors(FileInterceptor('photo'))
     async uploadPhoto(

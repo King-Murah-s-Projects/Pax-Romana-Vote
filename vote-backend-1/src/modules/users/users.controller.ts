@@ -11,7 +11,7 @@ import {Roles} from "../auth/decorators/roles.decorator";
 import { UserStatsDto } from "./dto/user-profile.dto";
 
 @Controller('users')
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class UsersController {
     constructor(private readonly usersService: UsersService) {}
 

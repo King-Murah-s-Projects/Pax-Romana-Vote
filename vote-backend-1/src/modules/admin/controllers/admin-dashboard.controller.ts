@@ -9,7 +9,7 @@ import { NominationStatisticsService } from "../services/nomination-statistics.s
 
 
 @Controller('admin/dashboard')
-// @UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRoles.EC_MEMBER, UserRoles.SUPER_ADMIN)
 export class AdminDashboardController {
     constructor(

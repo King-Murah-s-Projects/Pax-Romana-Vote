@@ -19,7 +19,8 @@ export class CloudinaryService {
         candidateId: string,
     ): Promise<UploadApiResponse> {
         try {
-            const result = await cloudinary.uploader.upload(file.buffer.toString('base64'), {
+            const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+            const result = await cloudinary.uploader.upload(dataUri, {
                 folder: `pax-romana/candidates/${candidateId}`,
                 public_id: `candidate-${candidateId}-${Date.now()}`,
                 transformation: [
@@ -41,7 +42,8 @@ export class CloudinaryService {
         nominationId: string,
     ): Promise<UploadApiResponse> {
         try {
-            const result = await cloudinary.uploader.upload(file.buffer.toString('base64'), {
+            const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+            const result = await cloudinary.uploader.upload(dataUri, {
                 folder: `pax-romana/nominations/${nominationId}`,
                 public_id: `nomination-${nominationId}-${Date.now()}`,
                 resource_type: 'auto',

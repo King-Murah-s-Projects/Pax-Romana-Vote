@@ -65,6 +65,7 @@ enum UserRole {
   EC_MEMBER // Added: Election Commissioner member
   SUPER_ADMIN // EC Chairperson
   ADMIN // Keep for general admin tasks
+  POLL_WORKER // Station operator: fast-path check-in only (ADR-0005)
 
   @@map("user_roles")
 }

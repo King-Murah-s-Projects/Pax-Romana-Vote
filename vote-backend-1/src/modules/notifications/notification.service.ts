@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { MnotifySmsService } from './service/mnotify-sms.service';
 import { EmailService } from './service/email.service';
 import { AdminNotificationsService } from './service/admin-notifications.service';
 import { PrismaService } from '../../../db';
-import { AdminActions } from "../common/enums/nomination-status.enum";
-import {UserRole, NominatorVerification, Candidate_Position} from "@prisma/client/index";
+import { AdminActions } from '../common/enums/nomination-status.enum';
+import { UserRole, Candidate_Position } from '@prisma/client/index';
+
+const ADMIN_ROLES = [UserRole.ADMIN, UserRole.EC_MEMBER, UserRole.SUPER_ADMIN] as const;
 
 @Injectable()
 export class NotificationService {
@@ -17,72 +20,63 @@ export class NotificationService {
         private adminNotificationsService: AdminNotificationsService,
     ) {}
 
-    // SMS Methods
-    async sendSms(to: string, message: string): Promise<boolean> {
-        const result = await this.notifySmsService.sendSms({ to, message });
-        if (!result.success) {
-            this.logger.error(`Failed to send SMS to ${to}: ${result.error}`);
-            throw new Error(`Failed to send SMS: ${result.error}`);
-        }
-        return true;
+    // ── Recipient resolution ─────────────────────────────────────────────────
+    // Single seam for all prisma.user queries in this module.
+
+    async recipientsFor(
+        roles: UserRole | UserRole[],
+    ): Promise<{ email: string; phone: string | null }[]> {
+        const roleArray = Array.isArray(roles) ? roles : [roles];
+        return this.prisma.user.findMany({
+            where: { role: { in: roleArray }, isActive: true },
+            select: { email: true, phone: true },
+        });
     }
 
-    async sendVerificationCode(phoneNumber: string, code: string): Promise<boolean> {
-        const result = await this.notifySmsService.sendVerificationCode(phoneNumber, code);
-        if (!result) {
-            this.logger.error(`Failed to send verification code to ${phoneNumber}`);
-            throw new Error('Failed to send verification code');
-        }
-        return true;
-    }
+    // ── Domain event handlers ────────────────────────────────────────────────
 
-    // Email Methods
-    async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    @OnEvent('ballot.cast')
+    async onBallotCast(payload: { positionIds: string[] }): Promise<void> {
         try {
-            const result = await this.emailService.sendEmail({ to, subject, html });
-            return result.success;
+            const recipients = await this.recipientsFor([...ADMIN_ROLES]);
+            for (const r of recipients) {
+                if (r.email) {
+                    await this.emailService.sendEmail({
+                        to: r.email,
+                        subject: 'Ballot cast — turnout update',
+                        html: `<p>A ballot was cast. Position IDs: ${payload.positionIds.join(', ')}.</p>`,
+                    });
+                }
+            }
         } catch (error) {
-            this.logger.error(`Failed to send email to ${to}:`, error);
-            return false;
+            this.logger.error('Failed to handle ballot.cast event', error);
         }
     }
 
-    async sendTemplateEmail(to: string, subject: string, template: string, data: any): Promise<boolean> {
-        try {
-            const result = await this.emailService.sendEmail({
-                to,
-                subject,
-                template,
-                templateData: data
-            });
-            return result.success;
-        } catch (error) {
-            this.logger.error(`Failed to send template email to ${to}:`, error);
-            return false;
-        }
-    }
+    // TODO: wire when nomination events land
+    // @OnEvent('nomination.status_changed')
+    // async onNominationStatusChanged(payload: { nominationId: string; status: string }): Promise<void> {}
+
+    // ── Nomination notifications ─────────────────────────────────────────────
 
     async notifyNominationStatusChange(
         nominationData: any,
         status: string,
-        reason?: string
+        reason?: string,
     ): Promise<void> {
         try {
-            // Email notification
             await this.emailService.sendNominationStatusEmail(
                 nominationData.nominee.email,
                 nominationData.nominee.name,
                 status,
-                reason
+                reason,
             );
-
-            // SMS notification
             await this.notifySmsService.sendNominationStatusUpdate(
                 nominationData.nominee.phoneNumber,
                 nominationData.nominee.name,
                 status,
-                //@ts-ignore
-                reason
+                // @ts-ignore
+                reason,
             );
         } catch (error) {
             this.logger.error('Failed to send nomination status change notification:', error);
@@ -90,18 +84,13 @@ export class NotificationService {
         }
     }
 
-    // Admin notifications
     async notifyAdminsOfNewNomination(data: {
         nominationId: string;
         nomineeName: string;
         position: string;
         createdAt: Date;
-    }) {
-        const admins = await this.prisma.user.findMany({
-            where: { role: { in: [UserRole.ADMIN, UserRole.EC_MEMBER, UserRole.SUPER_ADMIN] }, isActive: true },
-            select: { email: true },
-        });
-
+    }): Promise<void> {
+        const admins = await this.recipientsFor([...ADMIN_ROLES]);
         const adminEmails = admins.map((a) => a.email).filter(Boolean) as string[];
         try {
             const success = await this.emailService.sendAdminNotificationEmail(
@@ -119,7 +108,7 @@ export class NotificationService {
             }
             this.logger.log(`Admin notification sent to ${adminEmails.join(', ')}`);
         } catch (error) {
-            this.logger.error(`Failed to send admin notification`, error);
+            this.logger.error('Failed to send admin notification', error);
             throw error;
         }
     }
@@ -133,15 +122,13 @@ export class NotificationService {
         }
     }
 
-    // Verification-specific methods for guarantor and nominator services
     async sendNominatorVerificationEmail(data: {
         nomination: { nomineeName: string; nomineePosition: Candidate_Position };
         nominatorEmail: string;
         nominatorName: string;
         token: string;
-    }) {
+    }): Promise<void> {
         const verificationUrl = `${process.env.FRONTEND_URL}/verify-nomination/${data.token}`;
-
         try {
             const result = await this.emailService.sendEmail({
                 to: data.nominatorEmail,
@@ -156,86 +143,12 @@ export class NotificationService {
                     submissionDate: new Date().toLocaleDateString(),
                 },
             });
-
             if (!result.success) {
                 throw new Error(`Failed to send nominator verification email to ${data.nominatorEmail}`);
             }
-
             this.logger.log(`Nominator verification email sent to ${data.nominatorEmail}`);
         } catch (error) {
             this.logger.error(`Failed to send nominator verification email to ${data.nominatorEmail}`, error);
-            throw error;
-        }
-    }
-
-    // Add this method to your NotificationsService
-    async notifyEcMembersOfDecision(nominationId: string, reviewerId: string, action: AdminActions): Promise<void> {
-        try {
-            const nomination = await this.prisma.nomination.findUnique({
-                where: { id: nominationId },
-                include: {
-                    aspirant: true,
-                },
-            });
-
-            if (!nomination) {
-                throw new Error('Nomination not found');
-            }
-
-            const ecMembers = await this.prisma.user.findMany({
-                where: {
-                    role: { in: [UserRole.ADMIN, UserRole.EC_MEMBER, UserRole.SUPER_ADMIN] },
-                    id: { not: reviewerId },
-                    isActive: true,
-                },
-            });
-
-            const reviewer = await this.prisma.user.findUnique({
-                where: { id: reviewerId },
-                select: { name: true },
-            });
-
-            await this.adminNotificationsService.notifyEcMemberOfDecision({
-                ecMemberEmails: ecMembers.map((m) => m.email).filter(Boolean) as string[],
-                reviewerName: reviewer?.name || 'Unknown',
-                aspirantName: nomination.nomineeName,
-                position: nomination.nomineePosition,
-                action,
-                nominationId,
-            });
-        } catch (error) {
-            this.logger.error('Failed to notify EC members of decision:', error);
-            throw error;
-        }
-    }
-
-    // Notify aspirants of final decisions
-    async notifyAspirantOfDecision(nominationId: string, decision: 'APPROVE' | 'REJECT' | null): Promise<void> {
-        if (!decision) return;
-
-        try {
-            const nomination = await this.prisma.nomination.findUnique({
-                where: { id: nominationId },
-                include: {
-                    aspirant: true,
-                },
-            });
-
-            if (!nomination) {
-                throw new Error('Nomination not found');
-            }
-
-            if (nomination.nomineeEmail) {
-                await this.emailService.sendNominationStatusEmail(
-                    nomination.nomineeEmail,
-                    nomination.nomineeName,
-                    decision,
-                    //@ts-ignore
-                    nomination.rejectionReason,
-                );
-            }
-        } catch (error) {
-            this.logger.error('Failed to notify aspirant of decision:', error);
             throw error;
         }
     }
@@ -245,9 +158,8 @@ export class NotificationService {
         guarantorName: string;
         guarantorEmail: string;
         token: string;
-    }) {
+    }): Promise<void> {
         const verificationUrl = `${process.env.FRONTEND_URL}/verify-nomination/${data.token}`;
-
         try {
             const result = await this.emailService.sendEmail({
                 to: data.guarantorEmail,
@@ -262,11 +174,9 @@ export class NotificationService {
                     submissionDate: new Date().toLocaleDateString(),
                 },
             });
-
             if (!result.success) {
                 throw new Error(`Failed to send guarantor verification email to ${data.guarantorEmail}`);
             }
-
             this.logger.log(`Guarantor verification email sent to ${data.guarantorEmail}`);
         } catch (error) {
             this.logger.error(`Failed to send guarantor verification email to ${data.guarantorEmail}`, error);
@@ -274,12 +184,11 @@ export class NotificationService {
         }
     }
 
-    // Notification for verification completion
     async notifyNominationVerificationComplete(data: {
         nominee: { name: string; email: string; phoneNumber: string };
         position: string;
         createdAt: Date;
-    }) {
+    }): Promise<void> {
         try {
             const success = await this.emailService.sendVerificationCompleteEmail(data.nominee.email, {
                 nomineeName: data.nominee.name,
@@ -296,151 +205,65 @@ export class NotificationService {
         }
     }
 
-
-    // Deadline notifications
-    async sendDeadlineReminder(
-        to: string,
-        type: 'email' | 'sms',
-        hoursLeft: number
-    ): Promise<boolean> {
-        try {
-            const message = `Reminder: Nomination deadline in ${hoursLeft} hours. Submit your nomination before it's too late!`;
-
-            if (type === 'email') {
-                return await this.sendEmail(
-                    to,
-                    'Nomination Deadline Reminder',
-                    `<p>${message}</p>`
-                );
-            } else {
-                return await this.sendSms(to, message);
-            }
-        } catch (error) {
-            this.logger.error(`Failed to send deadline reminder to ${to}:`, error);
-            return false;
-        }
-    }
-
-    // EC-specific notifications
-    async sendECNotificationEmail(
-        email: string,
-        nominationId: string
-    ): Promise<boolean> {
-        try {
-            // Get nomination details for the email
-            const nomination = await this.getNominationDetails(nominationId);
-
-
-            //@ts-ignore
-            return await this.emailService.sendEmail({
-                to: email,
-                subject: 'New Nomination Ready for Review',
-                template: 'ec-notification',
-                templateData: {
-                    nomineeName: nomination.nomineeName,
-                    position: nomination.nomineePosition,
-                    submissionDate: nomination.createdAt,
-                    nominationId: nominationId,
-                    reviewUrl: `${process.env.FRONTEND_URL}/admin/nominations/${nominationId}/review`
-                }
-            });
-        } catch (error) {
-            this.logger.error(`Failed to send EC notification email to ${email}:`, error);
-            return false;
-        }
-    }
-
-    async sendDecisionNotificationEmail(
-        email: string,
-        nomineeName: string,
-        decision: 'APPROVED' | 'REJECTED',
-        reason?: string
-    ): Promise<boolean> {
-        try {
-            const subject = decision === 'APPROVED'
-                ? 'Nomination Approved - Congratulations!'
-                : 'Nomination Decision Update';
-
-            //@ts-ignore
-            return await this.emailService.sendEmail({
-                to: email,
-                subject,
-                template: 'nomination-decision',
-                templateData: {
-                    nomineeName,
-                    decision,
-                    reason,
-                    isApproved: decision === 'APPROVED',
-                    nextSteps: decision === 'APPROVED'
-                        ? 'Your nomination has been approved and you are now a candidate. Good luck!'
-                        : 'You may resubmit your nomination if you address the feedback provided.'
-                }
-            });
-        } catch (error) {
-            this.logger.error(`Failed to send decision notification email to ${email}:`, error);
-            return false;
-        }
-    }
-
-    // Bulk notifications
-    async sendBulkNotifications(
-        recipients: { email?: string; phone?: string }[],
-        subject: string,
-        message: string,
-        type: 'email' | 'sms' | 'both' = 'both'
-    ): Promise<{ success: number; failed: number }> {
-        let success = 0;
-        let failed = 0;
-
-        for (const recipient of recipients) {
-            try {
-                if (type === 'email' || type === 'both') {
-                    if (recipient.email) {
-                        const result = await this.sendEmail(recipient.email, subject, message);
-                        if (result) success++;
-                        else failed++;
-                    }
-                }
-
-                if (type === 'sms' || type === 'both') {
-                    if (recipient.phone) {
-                        const result = await this.sendSms(recipient.phone, message);
-                        if (result) success++;
-                        else failed++;
-                    }
-                }
-            } catch (error) {
-                this.logger.error(`Failed to send notification to recipient:`, error);
-                failed++;
-            }
-        }
-
-        return { success, failed };
-    }
-
-
-    private async getNominationDetails(nominationId: string): Promise<any> {
+    async notifyEcMembersOfDecision(
+        nominationId: string,
+        reviewerId: string,
+        action: AdminActions,
+    ): Promise<void> {
         try {
             const nomination = await this.prisma.nomination.findUnique({
                 where: { id: nominationId },
-                include: {
-                    aspirant: true,
-                },
+                include: { aspirant: true },
             });
+            if (!nomination) throw new Error('Nomination not found');
 
-            if (!nomination) {
-                throw new Error(`Nomination with ID ${nominationId} not found`);
-            }
+            // recipientsFor for EC members, excluding the reviewer
+            const allAdmins = await this.recipientsFor([...ADMIN_ROLES]);
+            const reviewer = await this.prisma.user.findUnique({
+                where: { id: reviewerId },
+                select: { name: true, email: true },
+            });
+            const ecMemberEmails = allAdmins
+                .filter((r) => r.email !== reviewer?.email)
+                .map((r) => r.email)
+                .filter(Boolean) as string[];
 
-            return {
-                nomineeName: nomination.nomineeName,
-                nomineePosition: nomination.nomineePosition,
-                createdAt: nomination.createdAt,
-                aspirantName: nomination.aspirant.name,
-                aspirantEmail: nomination.aspirant.email,
-            };
+            await this.adminNotificationsService.notifyEcMemberOfDecision({
+                ecMemberEmails,
+                reviewerName: reviewer?.name || 'Unknown',
+                aspirantName: nomination.nomineeName,
+                position: nomination.nomineePosition,
+                action,
+                nominationId,
+            });
         } catch (error) {
-            this.logger.error(`Failed to get nomination details for ${nominationId}:`, error);
+            this.logger.error('Failed to notify EC members of decision:', error);
+            throw error;
+        }
+    }
+
+    async notifyAspirantOfDecision(
+        nominationId: string,
+        decision: 'APPROVE' | 'REJECT' | null,
+    ): Promise<void> {
+        if (!decision) return;
+        try {
+            const nomination = await this.prisma.nomination.findUnique({
+                where: { id: nominationId },
+                include: { aspirant: true },
+            });
+            if (!nomination) throw new Error('Nomination not found');
+            if (nomination.nomineeEmail) {
+                await this.emailService.sendNominationStatusEmail(
+                    nomination.nomineeEmail,
+                    nomination.nomineeName,
+                    decision,
+                    // @ts-ignore
+                    nomination.rejectionReason,
+                );
+            }
+        } catch (error) {
+            this.logger.error('Failed to notify aspirant of decision:', error);
             throw error;
         }
     }

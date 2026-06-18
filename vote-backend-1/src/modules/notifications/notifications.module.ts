@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { NotificationService } from './notification.service';
 import { NotificationTestController } from './notifications.controller';
 import { MnotifySmsService } from './service/mnotify-sms.service';
@@ -13,6 +14,7 @@ import { CommonModule } from '../common/common.module';
     imports: [
         ConfigModule.forRoot({}),
         DbModule,
+        EventEmitterModule.forRoot(),
         forwardRef(() => CommonModule),
     ],
     controllers: [NotificationTestController],

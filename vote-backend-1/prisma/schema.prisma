@@ -124,6 +124,7 @@ model User {
   auditLogs             AuditLog[]
   verifications         Verification[]          @relation("Endorser")
   chairOverrides        ChairOverrideLog[]      @relation("ChairOverrides")
+  resultCertifications  ResultCertification[]   @relation("ResultCertifications")
   passwordResetTokens   PasswordResetToken[]
   subgroupRef           Subgroup?               @relation(fields: [subgroupId], references: [id])
   subgroupId            String?
@@ -482,6 +483,22 @@ model ChairOverrideLog {
   createdAt    DateTime   @default(now())
 
   @@map("chair_override_logs")
+}
+
+// ============= RESULT CERTIFICATIONS (ADR-0004) =============
+
+/// EC sign-off on a position's result after voting closes.
+/// Snapshots the tally at certification time; one record per position.
+model ResultCertification {
+  id             String             @id @default(cuid())
+  position       Candidate_Position @unique
+  certifiedAt    DateTime           @default(now())
+  certifiedById  String
+  certifiedBy    User               @relation("ResultCertifications", fields: [certifiedById], references: [id])
+  tallySnapshot  Json
+  notes          String?
+
+  @@map("result_certifications")
 }
 
 // ============= SYSTEM CONFIGURATION =============

@@ -66,6 +66,7 @@ export class FileUploadController {
     }
 
     @Get('urls/:publicId')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.EC_MEMBER)
     async getPhotoUrls(@Param('publicId') publicId: string) {
         return this.fileUploadService.generatePhotoUrls(publicId);
     }

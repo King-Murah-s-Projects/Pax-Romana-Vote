@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { FileValidationDto } from "../dto/upload-response.dto";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp = require('sharp');
 
 
 @Injectable()
@@ -51,6 +53,16 @@ export class ImageValidationService {
     }
 
     async validateImageDimensions(file: Express.Multer.File): Promise<void> {
-        return Promise.resolve();
+        const { width = 0, height = 0 } = await sharp(file.buffer).metadata();
+        if (width < this.MIN_DIMENSIONS.width || height < this.MIN_DIMENSIONS.height) {
+            throw new BadRequestException(
+                `Image too small. Minimum dimensions: ${this.MIN_DIMENSIONS.width}×${this.MIN_DIMENSIONS.height}px`,
+            );
+        }
+        if (width > this.MAX_DIMENSIONS.width || height > this.MAX_DIMENSIONS.height) {
+            throw new BadRequestException(
+                `Image too large. Maximum dimensions: ${this.MAX_DIMENSIONS.width}×${this.MAX_DIMENSIONS.height}px`,
+            );
+        }
     }
 }

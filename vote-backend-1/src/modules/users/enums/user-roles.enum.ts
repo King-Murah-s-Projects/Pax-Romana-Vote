@@ -3,6 +3,7 @@ export enum UserRoles {
     ASPIRANT = 'ASPIRANT',
     EC_MEMBER = 'EC_MEMBER',
     SUPER_ADMIN = 'SUPER_ADMIN',
-    ADMIN = 'ADMIN'
+    ADMIN = 'ADMIN',
+    POLL_WORKER = 'POLL_WORKER',
 }
 

@@ -3,7 +3,7 @@ import { PrismaService } from '../../../../db';
 import { NotificationService } from '../../notifications/notification.service';
 import { EcConsensusService } from '../../common/utils/ec-consensus.service';
 import { BulkNominationReviewDto, NominationReviewDto } from '../dto/nomination-review.dto';
-import { NominationStatus, UserRole } from '@prisma/client';
+import { NominationStatus } from '@prisma/client';
 import { AdminActions } from '../../common/enums/nomination-status.enum';
 
 @Injectable()
@@ -17,62 +17,42 @@ export class NominationReviewService {
     async reviewNomination(reviewDto: NominationReviewDto, reviewerId: string) {
         const nomination = await this.prisma.nomination.findUnique({
             where: { id: reviewDto.nominationId },
-            include: {
-                aspirant: true,
-            },
+            include: { aspirant: true },
         });
 
         if (!nomination) {
             throw new BadRequestException('Nomination not found');
         }
 
-        if (nomination.status !== NominationStatus.VERIFIED) {
+        if (nomination.status !== NominationStatus.VERIFIED && nomination.status !== NominationStatus.UNDER_REVIEW) {
             throw new BadRequestException('Nomination not ready for review');
         }
 
-        // Check if this EC member has already reviewed this nomination
-        const existingReview = await this.prisma.ecReview.findUnique({
-            where: {
-                nominationId_reviewerId: {
-                    nominationId: reviewDto.nominationId,
-                    reviewerId: reviewerId,
-                },
-            },
-        });
-
-        if (existingReview) {
+        const canVote = await this.ecConsensusService.canMemberVote(reviewerId, reviewDto.nominationId);
+        if (!canVote) {
             throw new BadRequestException('You have already reviewed this nomination');
         }
 
-        // Record EC member decision
-        await this.prisma.ecReview.create({
-            data: {
-                nominationId: reviewDto.nominationId,
-                reviewerId: reviewerId,
-                approved: reviewDto.action === AdminActions.APPROVE,
-                comments: reviewDto.comments,
-            },
-        });
+        const decision = reviewDto.action === AdminActions.APPROVE ? 'APPROVE' : 'REJECT';
 
-        // Update nomination approval/rejection counts
-        const updateData = reviewDto.action === AdminActions.APPROVE
-            ? { approvalCount: { increment: 1 } }
-            : { rejectionCount: { increment: 1 } };
+        // Atomic: records vote + finalizes nomination if consensus reached
+        const consensusResult = await this.ecConsensusService.recordVote(
+            reviewerId,
+            reviewDto.nominationId,
+            decision,
+        );
 
-        await this.prisma.nomination.update({
-            where: { id: reviewDto.nominationId },
-            //@ts-ignore
-            data: updateData,
-        });
+        if (consensusResult.reached) {
+            await this.notificationsService.notifyAspirantOfDecision(
+                reviewDto.nominationId,
+                consensusResult.outcome === 'APPROVED' ? 'APPROVE' : 'REJECT',
+            );
 
-        // Check if consensus is reached (2/3 majority)
-        const consensusResult = await this.ecConsensusService.checkConsensus(reviewDto.nominationId);
-
-        if (consensusResult.isConsensusReached) {
-            await this.finalizeNomination(reviewDto.nominationId, consensusResult.finalDecision);
+            if (consensusResult.outcome === 'APPROVED') {
+                await this.createCandidateFromNomination(reviewDto.nominationId);
+            }
         }
 
-        // Send notification to other EC members
         await this.notificationsService.notifyEcMembersOfDecision(
             reviewDto.nominationId,
             reviewerId,
@@ -108,7 +88,7 @@ export class NominationReviewService {
             } catch (error) {
                 results.failed++;
                 results.errors.push(
-                    `${nominationId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    `${nominationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 );
             }
         }
@@ -116,36 +96,23 @@ export class NominationReviewService {
         return results;
     }
 
-    private async finalizeNomination(nominationId: string, decision: 'APPROVE' | 'REJECT' | null) {
-        if (!decision) return;
-
-        const status = decision === AdminActions.APPROVE ? NominationStatus.APPROVED : NominationStatus.REJECTED;
-
-        await this.prisma.nomination.update({
-            where: { id: nominationId },
-            data: {
-                status,
-                //@ts-ignore
-                reviewedAt: new Date(),
-                rejectionReason: decision === AdminActions.REJECT ? 'Rejected by EC consensus' : null,
+    async getNominationsForReview() {
+        return this.prisma.nomination.findMany({
+            where: { status: { in: [NominationStatus.VERIFIED, NominationStatus.UNDER_REVIEW] } },
+            include: {
+                aspirant: { select: { id: true, name: true, phone: true } },
+                ecReviews: {
+                    select: { reviewerId: true, approved: true, comments: true, createdAt: true },
+                },
             },
+            orderBy: { createdAt: 'asc' },
         });
-
-        // Send notification to aspirant
-        await this.notificationsService.notifyAspirantOfDecision(nominationId, decision);
-
-        // If approved, create a candidate record
-        if (decision === AdminActions.APPROVE) {
-            await this.createCandidateFromNomination(nominationId);
-        }
     }
 
     private async createCandidateFromNomination(nominationId: string) {
         const nomination = await this.prisma.nomination.findUnique({
             where: { id: nominationId },
-            include: {
-                aspirant: true,
-            },
+            include: { aspirant: true },
         });
 
         if (!nomination) return;
@@ -162,84 +129,10 @@ export class NominationReviewService {
                 position: nomination.nomineePosition,
                 nominationId: nomination.id,
                 photoUrl: nomination.photoUrl,
-                //@ts-ignore
+                // @ts-ignore
                 photoPublicId: nomination.photoPublicId,
                 candidateNumber: nextCandidateNumber,
                 isActive: true,
-            },
-        });
-    }
-
-    async checkConsensus(nominationId: string) {
-        const decisions = await this.prisma.ecReview.findMany({
-            where: { nominationId },
-            include: {
-                reviewer: {
-                    select: {
-                        role: true,
-                        isActive: true,
-                    },
-                },
-            },
-        });
-
-        const totalEcMembers = await this.prisma.user.count({
-            where: {
-                role: { in: [UserRole.ADMIN, UserRole.EC_MEMBER] },
-                isActive: true,
-            },
-        });
-
-        const approvals = decisions.filter((d) => d.approved).length;
-        const rejections = decisions.filter((d) => !d.approved).length;
-        const pending = totalEcMembers - decisions.length;
-
-        const requiredForConsensus = Math.ceil((totalEcMembers * 2) / 3);
-        const isConsensusReached = approvals >= requiredForConsensus || rejections >= requiredForConsensus;
-
-        let finalDecision: 'APPROVE' | 'REJECT' | null = null;
-        if (isConsensusReached) {
-            finalDecision = approvals >= requiredForConsensus ? 'APPROVE' : 'REJECT';
-        }
-
-        return {
-            nominationId,
-            approvals,
-            rejections,
-            pending,
-            totalEcMembers,
-            requiredForConsensus,
-            isConsensusReached,
-            finalDecision,
-        };
-    }
-
-    async getNominationsForReview(ecMemberId?: string) {
-        const where = {
-            status: NominationStatus.VERIFIED,
-        };
-
-        return this.prisma.nomination.findMany({
-            where,
-            include: {
-                aspirant: {
-                    select: {
-                        id: true,
-                        name: true,
-                        phone: true,
-                    },
-                },
-                ecReviews: {
-                    select: {
-                        reviewerId: true,
-                        approved: true,
-                        comments: true,
-                        createdAt: true,
-                    },
-                },
-            },
-            orderBy: {
-                createdAt: 'asc',
             },
         });
     }

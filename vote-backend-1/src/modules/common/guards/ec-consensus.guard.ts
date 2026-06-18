@@ -13,16 +13,21 @@ export class EcConsensusGuard implements CanActivate {
         const request = context.switchToHttp().getRequest();
         const { user, body } = request;
 
-        // Only apply to EC members for nomination decisions
-        if (user.role === 'EC_MEMBER' && body.nominationId) {
-            const canProceed = await this.ecConsensusService.canMemberVote(
-                user.id,
-                body.nominationId
-            );
+        if (!user) {
+            throw new ForbiddenException('Authentication required');
+        }
 
-            if (!canProceed) {
-                throw new ForbiddenException('You have already voted on this nomination');
-            }
+        if (!body?.nominationId) {
+            throw new ForbiddenException('nominationId is required');
+        }
+
+        const canProceed = await this.ecConsensusService.canMemberVote(
+            user.id,
+            body.nominationId,
+        );
+
+        if (!canProceed) {
+            throw new ForbiddenException('You have already voted on this nomination');
         }
 
         return true;

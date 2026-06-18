@@ -303,6 +303,33 @@ model Vote {
   @@map("votes")
 }
 
+// ============= IN-PERSON VOTING ELIGIBILITY =============
+
+/// Frozen snapshot of eligible voters keyed by student ID.
+/// Imported from Pax's own membership records before the voting window opens.
+/// Once frozen, no new entries are accepted for that election cycle.
+model EligibilityRoster {
+  id        String   @id @default(cuid())
+  studentId String   @unique
+  name      String
+  frozen    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("eligibility_roster")
+}
+
+/// One-person-one-vote gate. Created by the station operator at check-in.
+/// Intentionally has NO foreign key to Vote, Ballot, or VotingSession —
+/// unlinkability is the ballot-secrecy guarantee (ADR-0001).
+model ParticipationRecord {
+  id          String   @id @default(cuid())
+  studentId   String   @unique // DB-enforced: each student ID appears at most once
+  checkedInAt DateTime @default(now())
+
+  @@map("participation_records")
+}
+
 // ============= AUDIT & LOGGING =============
 
 model AuditLog {

@@ -19,7 +19,7 @@ export class EcNominationsController {
 
     @Get()
     async getNominationsForReview(@Req() req) {
-        return this.nominationReviewService.getNominationsForReview(req.user.id);
+        return this.nominationReviewService.getNominationsForReview();
     }
 
     @Post('review')

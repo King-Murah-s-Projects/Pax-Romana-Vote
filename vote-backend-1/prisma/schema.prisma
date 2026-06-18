@@ -113,6 +113,7 @@ model User {
   ecReviews             EcReview[]              @relation("Reviewer")
   votingSessions        VotingSession[]
   auditLogs             AuditLog[]
+  chairOverrideLogs     ChairOverrideLog[]      @relation("OverrideActor")
   subgroupRef           Subgroup?               @relation(fields: [subgroupId], references: [id])
   subgroupId            String?
 }
@@ -156,6 +157,7 @@ model Nomination {
   nominatorVerification  NominatorVerification?
   guarantorVerifications GuarantorVerification[]
   ecReviews              EcReview[]
+  chairOverrideLogs      ChairOverrideLog[]
   candidate              Candidate?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
@@ -329,6 +331,21 @@ model ParticipationRecord {
   checkedInAt DateTime @default(now())
 
   @@map("participation_records")
+}
+
+/// Records a SUPER_ADMIN chair override used to break a deadlocked EC vote.
+/// A chair override is only valid when deadlocked; cannot overturn a reached consensus.
+model ChairOverrideLog {
+  id           String     @id @default(cuid())
+  nominationId String
+  nomination   Nomination @relation(fields: [nominationId], references: [id])
+  actorId      String
+  actor        User       @relation("OverrideActor", fields: [actorId], references: [id])
+  decision     String     // 'APPROVE' | 'REJECT'
+  reason       String
+  createdAt    DateTime   @default(now())
+
+  @@map("chair_override_logs")
 }
 
 // ============= AUDIT & LOGGING =============

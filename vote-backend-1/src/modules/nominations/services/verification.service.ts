@@ -1,11 +1,15 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../../db';
+import { NominationWorkflowService } from './nomination-workflow.service';
 
 @Injectable()
 export class VerificationService {
   private readonly logger = new Logger(VerificationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly nominationWorkflow: NominationWorkflowService,
+  ) {}
 
   /**
    * Returns true only when the nomination has exactly 1 VERIFIED NOMINATOR
@@ -28,9 +32,9 @@ export class VerificationService {
   }
 
   /**
-   * Marks a verification as REPUDIATED (fabricated endorser) and flags the
-   * parent nomination as NEEDS_ATTENTION so the aspirant can replace the
-   * endorser. Full state-machine transitions are handled by issue #19.
+   * Marks a verification as REPUDIATED (fabricated endorser) and delegates
+   * to NominationWorkflowService to transition the nomination to NEEDS_ATTENTION
+   * and escalate if ≥2 repudiations exist on the nomination.
    */
   async repudiate(verificationId: string, reason: string): Promise<void> {
     const verification = await this.prisma.verification.findUnique({
@@ -54,10 +58,6 @@ export class VerificationService {
       `Verification ${verificationId} repudiated for nomination ${verification.nominationId}: ${reason}`,
     );
 
-    // Stub: trigger NEEDS_ATTENTION on the nomination (full state machine in #19)
-    await this.prisma.nomination.update({
-      where: { id: verification.nominationId },
-      data: { status: 'NEEDS_ATTENTION' },
-    });
+    await this.nominationWorkflow.handleRepudiation(verification.nominationId);
   }
 }

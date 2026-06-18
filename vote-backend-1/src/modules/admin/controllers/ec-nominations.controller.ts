@@ -9,7 +9,7 @@ import { BulkNominationReviewDto, NominationReviewDto } from "../dto/nomination-
 
 
 @Controller('admin/ec/nominations')
-// @UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRoles.EC_MEMBER, UserRoles.SUPER_ADMIN)
 export class EcNominationsController {
     constructor(

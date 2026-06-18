@@ -6,6 +6,7 @@ import {
     Body,
     Controller,
     Get, InternalServerErrorException,
+    Logger,
     Param,
     Post,
     Query, UploadedFile,
@@ -17,11 +18,11 @@ import { NominationStatus } from "@prisma/client/index";
 import {FileInterceptor} from "@nestjs/platform-express";
 
 @Controller('nominations')
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class NominationsController {
-    constructor(private nominationService: NominationService) {
-        console.log('Instantiating Nominations Controller');
-    };
+    private readonly logger = new Logger(NominationsController.name);
+
+    constructor(private nominationService: NominationService) {}
 
     @Post()
     @UseInterceptors(FileInterceptor('photo'))
@@ -29,7 +30,6 @@ export class NominationsController {
         @Body() createNominationDto: CreateNominationDto,
         @UploadedFile() file: Express.Multer.File,
     ) {
-        console.log('Received nomination request');
         try {
             const nomination = await this.nominationService.createNomination(createNominationDto, file);
             return {
@@ -38,7 +38,7 @@ export class NominationsController {
                 message: 'Nomination created successfully',
             };
         } catch (error) {
-            console.error(`Failed to create nomination: ${error.message}`, error.stack);
+            this.logger.error(`Failed to create nomination: ${error.message}`, error.stack);
             if (error instanceof BadRequestException) {
                 throw error;
             }

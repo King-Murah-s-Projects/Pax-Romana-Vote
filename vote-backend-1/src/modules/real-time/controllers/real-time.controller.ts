@@ -84,7 +84,7 @@ export class RealTimeController {
      * System monitoring stream (super admin only)
      */
     @Get('system-monitor')
-    // @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.SUPER_ADMIN)
     systemMonitorStream(
         @Req() req: Request,

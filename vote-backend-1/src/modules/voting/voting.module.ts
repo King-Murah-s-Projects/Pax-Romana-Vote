@@ -5,6 +5,7 @@ import { VotingController } from './voting.controller';
 import { VotingService } from './voting.service';
 import { VoteSubmissionService } from './services/vote-submission.service';
 import { VotingAdminService } from './services/voting-admin.service';
+import { EligibilityService } from './eligibility/eligibility.service';
 import { RealTimeModule } from '../real-time/real-time.module';
 import { ResultsModule } from '../results/results.module';
 

@@ -264,6 +264,8 @@ model Candidate {
   // Vote counting (encrypted/hashed)
   voteCount Int @default(0)
 
+  ballots Ballot[]
+
   @@map("candidates")
 }
 
@@ -315,6 +317,37 @@ model Vote {
   sessionId String
 
   @@map("votes")
+}
+
+// ============= EC GOVERNANCE =============
+
+/// Audit log for every chair override — records actor, decision, and reason.
+/// Only written when the override is deadlock-only (ADR-0003).
+model ChairOverrideLog {
+  id           String     @id @default(cuid())
+  nominationId String
+  nomination   Nomination @relation(fields: [nominationId], references: [id])
+  actorId      String
+  decision     String
+  reason       String
+  createdAt    DateTime   @default(now())
+
+  @@map("chair_override_logs")
+}
+
+// ============= ANONYMOUS BALLOT (ADR-0001) =============
+
+/// Anonymous, unlinkable ballot row. Contains no voter identity — no userId,
+/// no voterHash, no sessionId, no operatorId. The student-ID one-vote gate
+/// lives in ParticipationRecord; these tables are structurally unjoinable.
+model Ballot {
+  id          String             @id @default(cuid())
+  candidateId String
+  candidate   Candidate          @relation(fields: [candidateId], references: [id])
+  position    Candidate_Position
+  castedAt    DateTime           @default(now())
+
+  @@map("ballots")
 }
 
 // ============= IN-PERSON VOTING ELIGIBILITY =============
